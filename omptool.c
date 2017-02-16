@@ -10,18 +10,22 @@ void init_event_maps(int thread_id, ompt_data_t thread_data) {
 }
 
 void add_trace_record(int thread_id, int event_id, ompt_frame_t * frame, void * codeptr_ra) {
-	thread_event_map_t * maps = &event_maps[thread_id];
 	maps->counter ++;
 	int counter = maps->counter;
-	maps->event_id[counter] = event_id;
-	maps->frame[counter] = frame;
-	maps->codeptr_ra[counter] = codeptr_ra;
+	ompt_trace_record_t * rd = &event_maps[thread_id].records[counter];
+
+	rd->event_id = event_id;
+	rd->frame = frame;
+	rd->codeptr_ra = codeptr_ra;
+}
+
+ompt_trace_record_t get_trace_record(int thread_id, int index) {
+	return &event_maps[thread_id].records[index];
 }
 
 void set_trace_parallel_id(int thread_id, int counter, ompt_id_t parallel_id) {
-	thread_event_map_t * maps = &event_maps[thread_id];
-	int counter = maps->counter;
-	maps->parallel_id[counter] = parallel_id;
+	ompt_trace_record_t * rd = &event_maps[thread_id].records[counter];
+	rd->parallel_id = parallel_id;
 }
 
 void add_trace_record(int thread_id,int parallel_id, unsigned long frequency, double energy_consumed, double time_consumed) 
