@@ -4,21 +4,25 @@
 /* For one million records, we will need about 72Mbytes of memory to store
  * the tracing for each thread. 
  */
+
+typedef struct ompt_trace_record {
+  ompt_id_t parallel_id;
+  int event_id;
+  ompt_id_t graph_id;
+  ompt_frame_t * frame;
+  void * codeptr_ra;
+  ompt_id_t target_id;
+  
+  unsigned long frequency;;
+  double time_stamp;
+  double energy_consumed;
+} ompt_trace_record_t;
+
 typedef struct thread_event_map {
   ompt_id_t thread_id;
   ompt_data_t thread_data;
   int counter;
-  
-  ompt_id_t parallel_id[MAX_NUM_RECORDS];
-  int event_id[MAX_NUM_RECORDS];
-  ompt_id_t graph_id[MAX_NUM_RECORDS];
-  ompt_frame_t * frame[MAX_NUM_RECORDS];
-  void * codeptr_ra[MAX_NUM_RECORDS];
-  ompt_id_t target_id[MAX_NUM_RECORDS]
-  
-  unsigned long frequency[MAX_NUM_RECORDS];
-  double time_stamp[MAX_NUM_RECORDS];
-  double energy_consumed[MAX_NUM_RECORDS];
+  ompt_trace_record_t[MAX_NUM_RECORDS];
   
   //double energy_consumed;
   //double time_consumed;
