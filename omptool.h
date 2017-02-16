@@ -5,6 +5,9 @@
  * the tracing for each thread. 
  */
 
+/* The trace record struc contains every posibble information we want to store per event
+ * though not all the fields are used for any events
+ */
 typedef struct ompt_trace_record {
   ompt_id_t parallel_id;
   int event_id;
@@ -18,6 +21,9 @@ typedef struct ompt_trace_record {
   double energy_consumed;
 } ompt_trace_record_t;
 
+/* each thread has an object of thread_event_map that stores all the tracing record along 
+ * during the execution
+ */
 typedef struct thread_event_map {
   ompt_id_t thread_id;
   ompt_data_t thread_data;
@@ -28,6 +34,7 @@ typedef struct thread_event_map {
   //double time_consumed;
 } thread_event_map_t;
 
+/* this is the array for store all the event tracing records by all the threads */
 extern thread_event_map_t event_maps[];
 
 extern void init_event_maps(int thread_id, ompt_data_t thread_data);
