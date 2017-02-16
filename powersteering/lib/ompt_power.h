@@ -42,7 +42,7 @@ unsigned long kernelCpuId_freq[72];
 int state_of_idle[72] = {1}; // 0 is in the beginning of idle state; 1 means the end of idle state. 
 int ompt_num_threads;
 int first_time = 1;// 1 is the first time for running the parallel code, 0 is not
-thread_event_map_t power_event_maps[256];
+thread_event_map_t event_maps[256];
 #endif
 
 static void print_ids(int level)
@@ -319,7 +319,7 @@ on_ompt_callback_idle(
       //printf("%" PRIu64 ": ompt_event_idle_begin:\n", ompt_get_thread_data()->value);
       //printf("%" PRIu64 ": ompt_event_idle_begin: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data.value);
 #ifdef USERSPACE
-      //if((id != 36 || id != 0) && power_event_maps[0].time_consumed > 0.1)
+      //if((id != 36 || id != 0) && event_maps[0].time_consumed > 0.1)
       if(id != 36 || id != 0)
       {
         /*set up the state of kernel cpu id as the beginning of idle.*/
@@ -331,9 +331,9 @@ on_ompt_callback_idle(
             if(state_of_idle[id] == 0 && state_of_idle[pair_id] == 0)
             {
                 cpufreq_set_frequency(id,low_freq);
-                power_event_maps[id].frequency = low_freq;        
+                event_maps[id].frequency = low_freq;        
                 cpufreq_set_frequency(pair_id,low_freq);
-                power_event_maps[pair_id].frequency = low_freq;
+                event_maps[pair_id].frequency = low_freq;
             }
       }
 #endif
@@ -342,11 +342,11 @@ on_ompt_callback_idle(
       //printf("%" PRIu64 ": ompt_event_idle_end:\n", ompt_get_thread_data()->value);
       //printf("%" PRIu64 ": ompt_event_idle_end: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data.value);
       #ifdef USERSPACE
-      //if((id != 36 || id != 0) && power_event_maps[0].time_consumed > 0.1)
+      //if((id != 36 || id != 0) && event_maps[0].time_consumed > 0.1)
       if(id != 36 || id != 0)
       {
         cpufreq_set_frequency(id,high_freq);
-        power_event_maps[id].frequency = high_freq;
+        event_maps[id].frequency = high_freq;
         state_of_idle[id] = 1;
       }
 #endif
@@ -511,14 +511,14 @@ on_ompt_callback_parallel_begin(
   parallel_data->value = ompt_get_unique_id();
   //printf("%" PRIu64 ": ompt_event_parallel_begin: parent_task_id=%" PRIu64 ", parent_task_frame.exit=%p, parent_task_frame.reenter=%p, parallel_id=%" PRIu64 ", requested_team_size=%" PRIu32 ", parallel_function=%p, invoker=%d\n", ompt_get_thread_data()->value, parent_task_data->value, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, parallel_data->value, requested_team_size, codeptr_ra, invoker);
 #ifdef USERSPACE
-  power_event_maps[0].parallel_id = parallel_data->value;
-  printf("parallel_id:%d\n",power_event_maps[0].parallel_id);
+  event_maps[0].parallel_id = parallel_data->value;
+  printf("parallel_id:%d\n",event_maps[0].parallel_id);
   energy_measure_before_segment();
   if(first_time == 0)
   {
   ompt_parallel_time = omp_get_wtime() - ompt_parallel_time; 
-  power_event_maps[0].time_consumed = ompt_parallel_time;
-  printf("time_consumed:%.6f\n", power_event_maps[0].time_consumed);
+  event_maps[0].time_consumed = ompt_parallel_time;
+  printf("time_consumed:%.6f\n", event_maps[0].time_consumed);
   }
 #endif
   //print_ids(4);
@@ -534,8 +534,8 @@ on_ompt_callback_parallel_end(
   //printf("%" PRIu64 ": ompt_event_parallel_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", invoker=%d, codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, invoker, codeptr_ra);
 #ifdef USERSPACE
   ompt_parallel_time = omp_get_wtime();
-  power_event_maps[0].energy_consumed = energy_measure_after_segment();
-  printf("Energy Consumed:%.4fj\n",power_event_maps[0].energy_consumed);
+  event_maps[0].energy_consumed = energy_measure_after_segment();
+  printf("Energy Consumed:%.4fj\n",event_maps[0].energy_consumed);
   if(first_time == 1)
 	first_time = 0;	
 #endif
