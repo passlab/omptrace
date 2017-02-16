@@ -35,6 +35,8 @@ static ompt_get_unique_id_t ompt_get_unique_id;
 
 double ompt_time;
 #ifdef USERSPACE
+//extern int iteration_ompt;
+//int inner_counter = 0;
 double ompt_parallel_time;
 unsigned long high_freq = 2300000;
 unsigned long low_freq  = 1300000;
@@ -331,9 +333,9 @@ on_ompt_callback_idle(
             if(state_of_idle[id] == 0 && state_of_idle[pair_id] == 0)
             {
                 cpufreq_set_frequency(id,low_freq);
-                event_maps[id].frequency = low_freq;        
+                event_maps[id].records[0].frequency = low_freq;        
                 cpufreq_set_frequency(pair_id,low_freq);
-                event_maps[pair_id].frequency = low_freq;
+                event_maps[pair_id].records[0].frequency = low_freq;
             }
       }
 #endif
@@ -341,12 +343,12 @@ on_ompt_callback_idle(
     case ompt_scope_end:
       //printf("%" PRIu64 ": ompt_event_idle_end:\n", ompt_get_thread_data()->value);
       //printf("%" PRIu64 ": ompt_event_idle_end: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data.value);
-      #ifdef USERSPACE
+#ifdef USERSPACE
       //if((id != 36 || id != 0) && event_maps[0].time_consumed > 0.1)
       if(id != 36 || id != 0)
       {
         cpufreq_set_frequency(id,high_freq);
-        event_maps[id].frequency = high_freq;
+        event_maps[id].records[0].frequency = high_freq;
         state_of_idle[id] = 1;
       }
 #endif
@@ -511,14 +513,15 @@ on_ompt_callback_parallel_begin(
   parallel_data->value = ompt_get_unique_id();
   //printf("%" PRIu64 ": ompt_event_parallel_begin: parent_task_id=%" PRIu64 ", parent_task_frame.exit=%p, parent_task_frame.reenter=%p, parallel_id=%" PRIu64 ", requested_team_size=%" PRIu32 ", parallel_function=%p, invoker=%d\n", ompt_get_thread_data()->value, parent_task_data->value, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, parallel_data->value, requested_team_size, codeptr_ra, invoker);
 #ifdef USERSPACE
-  event_maps[0].parallel_id = parallel_data->value;
-  printf("parallel_id:%d\n",event_maps[0].parallel_id);
+  event_maps[0].records[0].parallel_id = parallel_data->value;
+  printf("parallel_begin\n");
+  //printf("parallel_id:%d\n",event_maps[0].parallel_id);
   energy_measure_before_segment();
-  if(first_time == 0)
+  if(first_time == 0) // 0 means it's not the first time entering parallel_begin.
   {
   ompt_parallel_time = omp_get_wtime() - ompt_parallel_time; 
-  event_maps[0].time_consumed = ompt_parallel_time;
-  printf("time_consumed:%.6f\n", event_maps[0].time_consumed);
+  event_maps[0].records[0].time_stamp = ompt_parallel_time;
+  printf("time_consumed:%.6f\n", event_maps[0].records[0].time_stamp);
   }
 #endif
   //print_ids(4);
@@ -533,11 +536,26 @@ on_ompt_callback_parallel_end(
 {
   //printf("%" PRIu64 ": ompt_event_parallel_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", invoker=%d, codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, invoker, codeptr_ra);
 #ifdef USERSPACE
+
   ompt_parallel_time = omp_get_wtime();
-  event_maps[0].energy_consumed = energy_measure_after_segment();
-  printf("Energy Consumed:%.4fj\n",event_maps[0].energy_consumed);
+  event_maps[0].records[0].energy_consumed = energy_measure_after_segment();
+  printf("energy_consumed:%.6fj\n",event_maps[0].records[0].energy_consumed);
   if(first_time == 1)
 	first_time = 0;	
+  printf("parallel_end\n");
+/*
+  if(inner_counter == iteration_ompt)
+  {
+	int i;
+	for(i = 0;i<72;i++)
+		if(i != 0 || i != 36)
+		{
+		cpufreq_set_frequency(i,low_freq);
+                event_maps[i].frequency = low_freq;
+		}
+  }
+  else inner_counter++;
+*/
 #endif
 }
 
@@ -652,12 +670,22 @@ int ompt_initialize(
 */
 #ifdef USERSPACE
         int i;
-        ompt_num_threads = omp_get_num_threads();
-        for(i = 0;i<ompt_num_threads;i++)
+        //ompt_num_threads = omp_get_num_threads();
+        /*for(i = 0;i<ompt_num_threads;i++)
         {
                 kernelCpuId_freq[i] = high_freq;
         }
-//      timestamp = omp_get_wtime();
+        for(i = 0;i<72;i++)
+                if(i != 0 || i != 36)
+                {
+                cpufreq_set_frequency(i,low_freq);
+                event_maps[i].frequency = low_freq;
+                }
+		else{
+		cpufreq_set_frequency(i,high_freq);
+                event_maps[i].frequency = high_freq;
+		}
+	*/
       #endif
             ompt_time = omp_get_wtime();
                   energy_measure_before();
