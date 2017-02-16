@@ -1,6 +1,6 @@
 #include "ompt.h"
 
-#define MAX_NUM_RECORDs 1000000
+#define MAX_NUM_RECORDS 1000000
 /* For one million records, we will need about 72Mbytes of memory to store
  * the tracing for each thread. 
  */
@@ -13,7 +13,7 @@ typedef struct ompt_trace_record {
   void * codeptr_ra;
   ompt_id_t target_id;
   
-  unsigned long frequency;;
+  unsigned long frequency;
   double time_stamp;
   double energy_consumed;
 } ompt_trace_record_t;
