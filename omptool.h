@@ -22,7 +22,7 @@ typedef struct thread_event_map {
   ompt_id_t thread_id;
   ompt_data_t thread_data;
   int counter;
-  ompt_trace_record_t[MAX_NUM_RECORDS];
+  ompt_trace_record_t records[MAX_NUM_RECORDS];
   
   //double energy_consumed;
   //double time_consumed;
