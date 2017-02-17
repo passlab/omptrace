@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     memcpy(Y_parallel, Y_base, N * sizeof(REAL));
 
     int i;
-    int num_runs = 4;
+    int num_runs = 1;
   
     double elapsed_omp_parallel_for = read_timer();
     for (i=0; i<num_runs; i++) axpy_omp_parallel_for(N, Y_parallel, X, a);

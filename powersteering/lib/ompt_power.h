@@ -44,7 +44,7 @@ unsigned long kernelCpuId_freq[72];
 int state_of_idle[72] = {1}; // 0 is in the beginning of idle state; 1 means the end of idle state. 
 int ompt_num_threads;
 int first_time = 1;// 1 is the first time for running the parallel code, 0 is not
-thread_event_map_t event_maps[256];
+extern thread_event_map_t event_maps[256];
 #endif
 
 static void print_ids(int level)
