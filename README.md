@@ -28,11 +28,11 @@ Clang/LLVM and the above openmp runtime needs to be installed
  * The wiki page https://github.com/passlab/passlab.github.io/wiki/Visualization-of-Data-Layout-and-Access-of-Parallel-Program-for-Productive-Performance-Analysis-and-Tuning
  * Chapter 4 (tool support) of the latest OpenMP TR4 (http://www.openmp.org/wp-content/uploads/openmp-tr4.pdf)
  
-## Development
+## Development for visuomp (old)
 Modify the callback.h file to have each callback do different things and in the tests folder to rebuild mmomp and run to 
 test  your changes
 
-## Development
+## Development for power steering (old)
 Build all power/freq related sources and the ompt_power.h file into one library libpowersteering.so
 
 When you build you application, link the application with the library. 
