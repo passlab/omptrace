@@ -22,6 +22,14 @@ Then, go to tests folder, and "make" to generate the matrix multiplication binar
 Execute the code ./mmomp which will output lots of callback output we set in the callback.h file. 
 "make hello" will create the simpler hello example
 
+### To get global thread num and the total number of threads:
+Use the following two functions after you #include <rex.h> in the source code:
+
+    int rex_get_global_thread_num(); /* return global thread num numbered from 0 ... */
+    int rex_get_total_num_threads(); /* return the total number of threads in the runtime */
+    
+The rex.h header file is located in /opt/llvm/llvm-ompt-install/lib/clang/5.0.0/include and you may need to put the -I/opt/llvm/llvm-ompt-install/lib/clang/5.0.0/include flag in compiler if you are not using clang. 
+
 ### on fornax and using icc
 llvm-openmp runtime needs to be installed and replacing the official OpenMP runtime from icc
 https://github.com/OpenMPToolsInterface/LLVM-openmp/tree/towards_tr4 by letting LD_LIBRARY_PATH points to the ompt-enabled openmp runtime library. 
