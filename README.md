@@ -22,7 +22,7 @@ Then, go to tests folder, and "make" to generate the matrix multiplication binar
 Execute the code ./mmomp which will output lots of callback output we set in the callback.h file. 
 "make hello" will create the simpler hello example
 
-### To get global thread num and the total number of threads:
+#### To get global thread num and the total number of threads:
 Use the following two functions after you #include <rex.h> in the source code:
 
     int rex_get_global_thread_num(); /* return global thread num numbered from 0 ... */
