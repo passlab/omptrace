@@ -23,7 +23,7 @@ Execute the code ./mmomp which will output lots of callback output we set in the
 "make hello" will create the simpler hello example
 
 #### To get global thread num and the total number of threads:
-Use the following two functions after you #include <rex.h> in the source code:
+Use the following two functions after you #include rex.h in the source code:
 
     int rex_get_global_thread_num(); /* return global thread num numbered from 0 ... */
     int rex_get_total_num_threads(); /* return the total number of threads in the runtime */
