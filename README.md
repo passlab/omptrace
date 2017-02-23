@@ -1,3 +1,4 @@
+
 ## Visu and power steering tool using OMPT
 
 ## Prerequisite Installation
@@ -12,6 +13,10 @@ two env in your shell:
 
     export PATH=/opt/llvm/llvm-ompt-install/bin:$PATH
     export LD_LIBRARY_PATH=/opt/llvm/llvm-ompt-install/lib:$LD_LIBRARY_PATH
+    
+ If you want to build the LLVM runtime with the OpenMP support, please use the following cmake command:
+ 
+    cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=TRUE -DLIBOMP_REX_SUPPORT=TRUE -DCMAKE_INSTALL_PREFIX=/opt/llvm/llvm-ompt-install
 
 Then, go to tests folder, and "make" to generate the matrix multiplication binary
 Execute the code ./mmomp which will output lots of callback output we set in the callback.h file. 
