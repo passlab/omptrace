@@ -17,7 +17,6 @@
 #include <linux/perf_event.h>
 
 #include "cpufreq.h"
-#include "ompt_power.h"
 /*
  * CPU frequency operations
  */

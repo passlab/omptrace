@@ -1,4 +1,4 @@
-#include "ompt.h"
+#include <ompt.h>
 
 #define MAX_NUM_RECORDS 1000000
 #define MAX_NUM_THREADS 512
@@ -32,7 +32,7 @@ typedef struct ompt_trace_record {
 
     unsigned long frequency;
     double time_stamp;
-    ompt_pe_trace_record_t * pe_record;
+    ompt_pe_trace_record_t *pe_record;
 } ompt_trace_record_t;
 
 /* each thread has an object of thread_event_map that stores all the tracing record along 
@@ -64,7 +64,7 @@ extern ompt_pe_trace_record_t pe_epoch_end;
 #define get_trace_record_from_emap(emap, index) (&emap->records[index])
 
 /* functions for init/fini event map */
-extern void init_thread_event_map(int thread_id, ompt_data_t * thread_data);
+extern void init_thread_event_map(int thread_id, ompt_data_t *thread_data);
 extern void fini_thread_event_map(int thread_id);
 
 /** mark in the map that the execution enters into a region (parallel region, master, single, etc)
@@ -72,7 +72,6 @@ extern void fini_thread_event_map(int thread_id);
  */
 extern void mark_region_begin(int thread_id);
 extern void mark_region_end(int thread_id);
-
 extern ompt_trace_record_t *add_trace_record(int thread_id, int event_id, ompt_frame_t *frame, const void *codeptr_ra);
 extern void set_trace_parallel_id(int thread_id, int counter, ompt_id_t parallel_id);
 
@@ -83,6 +82,6 @@ extern void init_pe_units();
  * measure energy and store in the array for each package
  */
 extern void pe_measure(double *package, double *pp0, double *pp1, double *dram);
-extern double energy_consumed(double * begin, double * end);
-extern ompt_pe_trace_record_t * add_pe_measurement(ompt_trace_record_t * record);
+extern double energy_consumed(double *begin, double *end);
+extern ompt_pe_trace_record_t *add_pe_measurement(ompt_trace_record_t *record);
 
