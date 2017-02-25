@@ -63,6 +63,7 @@ ompt_trace_record_t *add_trace_record(int thread_id, int event_id, ompt_frame_t 
     rd->event_id = event_id;
     rd->frame = frame;
     rd->codeptr_ra = codeptr_ra;
+    rd->match_record = -1;
     //printf("Add trace record: %d\n", counter);
     return rd;
 }

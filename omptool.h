@@ -30,6 +30,8 @@ typedef struct ompt_trace_record {
     const void *codeptr_ra;
     ompt_id_t target_id;
 
+    int match_record; /* index for the matching record. the match for begin_event is end and the match for end_event is begin */
+
     unsigned long frequency;
     double time_stamp;
     ompt_pe_trace_record_t *pe_record;

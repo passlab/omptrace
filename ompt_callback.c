@@ -199,6 +199,11 @@ on_ompt_callback_parallel_end(
     end_record->parallel_id = parallel_data->value;
     /* find the trace record for the begin_event of the parallel region */
     ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
+
+    /* pair the begin and end event together so we create a double-link between each other */
+    begin_record->match_record = emap->counter;
+    end_record->match_record = emap->region_begin_stack[emap->last_region_begin];
+
     printf("Total time: %.3f(s)", end_record->time_stamp - begin_record->time_stamp);
 #ifdef PE_MEASUREMENT_SUPPORT
     ompt_pe_trace_record_t * end_pe_record = add_pe_measurement(end_record);
@@ -238,6 +243,7 @@ on_ompt_callback_thread_begin(
     thread_data->value = ompt_get_unique_id();
     ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_thread_begin, NULL, NULL);
     record->time_stamp = read_timer();
+    mark_region_begin(thread_id);
     //printf("%" PRIu64 ": ompt_event_thread_begin: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
 }
 
@@ -245,11 +251,15 @@ static void
 on_ompt_callback_thread_end(
         ompt_data_t *thread_data) {
     int thread_id = rex_get_global_thread_num();
+    thread_event_map_t *emap = get_event_map(thread_id);
     thread_data->value = ompt_get_unique_id();
-    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_thread_end, NULL, NULL);
+    ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_thread_end, NULL, NULL);
+    ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
+
+    /* pair the begin and end event together so we create a double-link between each other */
+    begin_record->match_record = emap->counter;
+    end_record->match_record = emap->region_begin_stack[emap->last_region_begin];
 //    fini_thread_event_map(thread_id);
-    //printf("%" PRIu64 ": ompt_event_thread_end: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data->value);
-    //printf("%" PRIu64 ": ompt_event_thread_end: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
 }
 
 #define register_callback_t(name, type)                       \
