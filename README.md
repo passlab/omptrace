@@ -37,7 +37,7 @@ Use the following two functions after you #include rex.h in the source code:
 The rex.h header file is located in `<install_path>/lib/clang/5.0.0/include` and you may need to put the `-I<install_path>/lib/clang/5.0.0/include` flag in compiler if you are not using clang. 
 
 #### on fornax and using icc
-llvm-openmp runtime needs to be installed as standalone by following the above insturctions and replacing the official OpenMP runtime from icc by letting LD_LIBRARY_PATH points to the ompt-enabled openmp runtime library. 
+llvm-openmp runtime needs to be installed as standalone by following the above insturctions and replacing the official OpenMP runtime from icc by letting LD_LIBRARY_PATH point to the ompt-enabled openmp runtime library. 
 
 ## To try omptool
 1. Go to example folder, check the [Makefile](examples/Makefile) and modify the two variable `OMPT_REX_INCLUDE` and `OMP_LIB_PATH` to point to right location of omp.h/ompt.h/rex.h files and the libomp.so lib as mentioned in the above. 
