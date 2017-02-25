@@ -6,38 +6,27 @@
     1. The implementation of the latest OMPT (https://github.com/OpenMPToolsInterface/LLVM-openmp/tree/towards_tr4)
     1. The master branch of the REX repo, which mainly provided two functions for omptool (one to retrieve the unique thread number (0, 1, ...) and the other for returning the total num of threads in the runtime system), see below. llvm-openmp actually provide those functions, but are not exposed.
     
-For installation, the omptool branch can either be installed standalone or with llvm/clang compiler. 
+### For installation of the omptool branch, which can be installed either standalone or with llvm/clang compiler. 
   1. clone the repo and checkout the omptool branch (standalone or in the llvm/clang source tree)
    
            git clone https://github.com/passlab/llvm-openmp
            git checkout omptool
            
-  1. cmake to create the makefile with OMPT_SUPPORT and REX_SUPPORT enabled
+  1. cmake to create the makefile with OMPT_SUPPORT and REX_SUPPORT enabled, make it and install it
     
            mkdir BUILD
            cd BUILD
            cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=TRUE -DLIBOMP_REX_SUPPORT=TRUE -DCMAKE_INSTALL_PREFIX=<install_path> ../llvm-openmp
-           
-           
-    
+           make; make install
+  1. location for header file (omp.h, ompt.h, and rex.h) and libomp.so library are `<install_path>/include` and `<install_path>/lib`.  setup the library path for execution and 
 
-
-
-### On orion.ec.oakland.edu
-the compiler and runtime are already installed in /opt/llvm/llvm-ompt-install, so set the following
+#### On orion.ec.oakland.edu
+The compiler and runtime are already installed in /opt/llvm/llvm-ompt-install, so set the following
 two env in your shell:
 
     export PATH=/opt/llvm/llvm-ompt-install/bin:$PATH
     export LD_LIBRARY_PATH=/opt/llvm/llvm-ompt-install/lib:$LD_LIBRARY_PATH
     
- If you want to build the LLVM runtime with the OpenMP support, please use the following cmake command:
- 
-    cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=TRUE -DLIBOMP_REX_SUPPORT=TRUE -DCMAKE_INSTALL_PREFIX=/opt/llvm/llvm-ompt-install
-
-Then, go to tests folder, and "make" to generate the matrix multiplication binary
-Execute the code ./mmomp which will output lots of callback output we set in the callback.h file. 
-"make hello" will create the simpler hello example
-
 #### To get global thread num and the total number of threads:
 Use the following two functions after you #include rex.h in the source code:
 
