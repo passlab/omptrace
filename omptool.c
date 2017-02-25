@@ -75,6 +75,7 @@ void set_trace_parallel_id(int thread_id, int counter, ompt_id_t parallel_id) {
 ompt_pe_trace_record_t *add_pe_measurement(ompt_trace_record_t *record) {
     ompt_pe_trace_record_t *pe_record = (ompt_pe_trace_record_t *) malloc(sizeof(ompt_pe_trace_record_t));
     pe_measure(pe_record->package, pe_record->pp0, pe_record->pp1, pe_record->dram);
+    record->pe_record = pe_record;
     return pe_record;
 }
 

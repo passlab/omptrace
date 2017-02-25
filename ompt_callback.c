@@ -197,15 +197,21 @@ on_ompt_callback_parallel_end(
     ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_parallel_end, NULL, codeptr_ra);
     end_record->time_stamp = read_timer();
     end_record->parallel_id = parallel_data->value;
-    ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
-    printf("Total time: %.3f(s)\n", end_record->time_stamp - begin_record->time_stamp);
-#ifdef PE_MEASUREMENT_SUPPORT
-    add_pe_measurement(end_record);
     /* find the trace record for the begin_event of the parallel region */
-
-    double energy = energy_consumed(begin_record->pe_record->package, end_record->pe_record->package);
-    printf("Energy_consumed:%.6fj, Time elasped: %fs\n", energy, end_record->time_stamp - begin_record->time_stamp);
+    ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
+    printf("Total time: %.3f(s)", end_record->time_stamp - begin_record->time_stamp);
+#ifdef PE_MEASUREMENT_SUPPORT
+    ompt_pe_trace_record_t * end_pe_record = add_pe_measurement(end_record);
+    ompt_pe_trace_record_t * begin_pe_record = begin_record->pe_record;
+    double package_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
+    double pp0_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
+    double pp1_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
+    double dram_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
+    double total_energy = package_energy + pp0_energy + pp1_energy + dram_energy;
+    printf(", Energy total: %.6fj(package: %.6fj, PP0: %.6fj, PP1: %.6fj, and DRAM: %.6fj)\n", total_energy,
+            package_energy, pp1_energy, pp0_energy, dram_energy);
 #endif
+    printf("\n");
     mark_region_end(thread_id);
 
 /*
@@ -302,18 +308,17 @@ void ompt_finalize(ompt_fns_t *fns) {
 
     /* stop the RAPL power collection and read the power/energy info */
     epoch_end.time_stamp = read_timer();
-    printf("Total time: %.3f(s)\n", epoch_end.time_stamp - epoch_begin.time_stamp);
+    printf("Total time: %.3f(s)", epoch_end.time_stamp - epoch_begin.time_stamp);
 #ifdef PE_MEASUREMENT_SUPPORT
-    pe_measure(pe_epoch_end.package, pe_epoch_end.pp0, pe_epoch_end.pp1, pe_epoch_end.dram);
-    printf("\t\tPackage energy: %.6fJ\n",
-           energy_consumed(pe_epoch_begin.package, pe_epoch_end.package));
-    printf("\t\tPowerPlane0 (cores): %.6fJ\n",
-           energy_consumed(pe_epoch_begin.pp0, pe_epoch_end.pp0));
-    printf("\t\tPowerPlane1 (if avail): %.6f J\n",
-           energy_consumed(pe_epoch_begin.pp1, pe_epoch_end.pp1));
-    printf("\t\tDRAM: %.6fJ\n",
-           energy_consumed(pe_epoch_begin.dram, pe_epoch_end.dram));
+    double package_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
+    double pp0_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
+    double pp1_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
+    double dram_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
+    double total_energy = package_energy + pp0_energy + pp1_energy + dram_energy;
+    printf(", Energy total: %.6fj(package: %.6fj, PP0: %.6fj, PP1: %.6fj, and DRAM: %.6fj)\n", total_energy,
+            package_energy, pp1_energy, pp0_energy, dram_energy);
 #endif
+    printf("\n");
 }
 
 ompt_fns_t *ompt_start_tool(
