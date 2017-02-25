@@ -19,7 +19,7 @@ The omptool branch can be installed either standalone or with llvm/clang compile
            cd BUILD
            cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=TRUE -DLIBOMP_REX_SUPPORT=TRUE -DCMAKE_INSTALL_PREFIX=<install_path> ../llvm-openmp
            make; make install
-  1. location for header files (omp.h, ompt.h, and rex.h) and libomp.so library are `<install_path>/include` and `<install_path>/lib` if the runtime is installed standalone. If it is installed as part of clang/llvm, the header location is `<install_path>/lib/clang/5.0.0/include`, and the libomp.so is from `<install_path>/lib`. Setup the library path for execution by letting LD_LIBRARY_PATH env include the lib path, and for compiling, you need to provide the header path and lib path to the -I and -L flags.  
+  1. location for header files (omp.h, ompt.h, and rex.h) and libomp.so library are `<install_path>/include` and `<install_path>/lib` if the runtime is installed standalone. If it is installed as part of clang/llvm, the header location is `<install_path>/lib/clang/5.0.0/include`, and the libomp.so is from `<install_path>/lib`. Setup the library path for execution by letting LD_LIBRARY_PATH env include the lib path. For development and compiling, you need to provide the header path and lib path to the -I and -L flags of the compiler.
 
 #### On orion.ec.oakland.edu
 The compiler and runtime are already installed in /opt/llvm/llvm-ompt-install, so set the following
@@ -37,11 +37,7 @@ Use the following two functions after you #include rex.h in the source code:
 The rex.h header file is located in /opt/llvm/llvm-ompt-install/lib/clang/5.0.0/include and you may need to put the -I/opt/llvm/llvm-ompt-install/lib/clang/5.0.0/include flag in compiler if you are not using clang. 
 
 ### on fornax and using icc
-llvm-openmp runtime needs to be installed and replacing the official OpenMP runtime from icc
-https://github.com/OpenMPToolsInterface/LLVM-openmp/tree/towards_tr4 by letting LD_LIBRARY_PATH points to the ompt-enabled openmp runtime library. 
-
-To use with clang:
-Clang/LLVM and the above openmp runtime needs to be installed
+llvm-openmp runtime needs to be installed as standalone by following the above insturctions and replacing the official OpenMP runtime from icc by letting LD_LIBRARY_PATH points to the ompt-enabled openmp runtime library. 
 
 ## Reference and Documentation for OMPT and Visualization
  * The wiki page https://github.com/passlab/passlab.github.io/wiki/Visualization-of-Data-Layout-and-Access-of-Parallel-Program-for-Productive-Performance-Analysis-and-Tuning
