@@ -3,19 +3,19 @@
 # sudo is tricky and you have to change to root and change LD_LIBRARY_PATH for root
 #
 
-OMP_REX_INCLUDE=/home/yan/tools/llvm-openmp/BUILD/runtime/src
+OMPT_REX_INCLUDE=/home/yan/tools/llvm-openmp/BUILD/runtime/src
 OMP_LIB_PATH=/home/yan/tools/llvm-openmp/BUILD/runtime/src
 
-LIB_SRC=../../cpufreq.c ../../pe_measurement.c ../../omptool.c ../../ompt_callback.c
+LIB_SRC=../cpufreq.c ../pe_measurement.c ../omptool.c ../ompt_callback.c
 
 axpyclang: axpy.c ${LIB_SRC}
-	clang $< ${LIB_SRC} -o $@ -fopenmp -L${OMP_LIB_PATH} -I${OMP_REX_INCLUDE} -lomp -lm
+	clang $< ${LIB_SRC} -o $@ -fopenmp -L${OMP_LIB_PATH} -I${OMPT_REX_INCLUDE} -lomp -lm
 
 matmul: matmul.c ${LIB_SRC}
-	icc $< ${LIB_SRC} -o $@ -openmp -L${OMP_LIB_PATH} -I${OMP_REX_INCLUDE} -lomp -lm -par-affinity=warnings,granularity=thread,proclist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71],explicit
+	icc $< ${LIB_SRC} -o $@ -openmp -L${OMP_LIB_PATH} -I${OMPT_REX_INCLUDE} -lomp -lm -par-affinity=warnings,granularity=thread,proclist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71],explicit
 
 axpy: axpy.c ${LIB_SRC}
-	icc $< ${LIB_SRC} -o $@ -openmp -L${OMP_LIB_PATH} -I${OMP_REX_INCLUDE} -lomp -lm -par-affinity=warnings,granularity=thread,proclist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71],explicit
+	icc $< ${LIB_SRC} -o $@ -openmp -L${OMP_LIB_PATH} -I${OMPT_REX_INCLUDE} -lomp -lm -par-affinity=warnings,granularity=thread,proclist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71],explicit
 
 clean:
 	rm -rf axpy matmul axpyclang
