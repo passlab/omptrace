@@ -18,7 +18,7 @@
            cd BUILD
            cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=TRUE -DLIBOMP_REX_SUPPORT=TRUE -DCMAKE_INSTALL_PREFIX=<install_path> ../llvm-openmp
            make; make install
-  1. location for header file (omp.h, ompt.h, and rex.h) and libomp.so library are `<install_path>/include` and `<install_path>/lib`.  setup the library path for execution and 
+  1. location for header files (omp.h, ompt.h, and rex.h) and libomp.so library are `<install_path>/include` and `<install_path>/lib` if the runtime is installed standalone. If it is installed as part of clang/llvm, the header location is `<install_path>/lib/clang/5.0.0/include`, and the libomp.so is from `<install_path>/lib`. Setup the library path for execution by letting LD_LIBRARY_PATH env include the lib path, and for compiling, you need to provide the header path and lib path to the -I and -L flags.  
 
 #### On orion.ec.oakland.edu
 The compiler and runtime are already installed in /opt/llvm/llvm-ompt-install, so set the following
