@@ -34,7 +34,7 @@ Use the following two functions after you #include rex.h in the source code:
     int rex_get_global_thread_num(); /* return global thread num numbered from 0 ... */
     int rex_get_total_num_threads(); /* return the total number of threads in the runtime */
     
-The rex.h header file is located in /opt/llvm/llvm-ompt-install/lib/clang/5.0.0/include and you may need to put the -I/opt/llvm/llvm-ompt-install/lib/clang/5.0.0/include flag in compiler if you are not using clang. 
+The rex.h header file is located in `<install_path>/lib/clang/5.0.0/include` and you may need to put the `-I<install_path>/lib/clang/5.0.0/include` flag in compiler if you are not using clang. 
 
 ### on fornax and using icc
 llvm-openmp runtime needs to be installed as standalone by following the above insturctions and replacing the official OpenMP runtime from icc by letting LD_LIBRARY_PATH points to the ompt-enabled openmp runtime library. 
