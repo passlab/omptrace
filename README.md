@@ -1,5 +1,5 @@
 
-## Visu and power steering tool using OMPT
+# Visu and power steering tool using OMPT
 
 ## Prerequisite and Installation
 1. OpenMP implementation that supports OMPT interface, which is the omptool branch of the https://github.com/passlab/llvm-openmp REX repo. The omptool branch merged the official llvm-openmp repo with the following two changes:
@@ -28,7 +28,7 @@ two env in your shell:
     export PATH=/opt/llvm/llvm-ompt-install/bin:$PATH
     export LD_LIBRARY_PATH=/opt/llvm/llvm-ompt-install/lib:$LD_LIBRARY_PATH
     
-#### To get global thread num and the total number of threads:
+##### To get global thread num and the total number of threads:
 Use the following two functions after you #include rex.h in the source code:
 
     int rex_get_global_thread_num(); /* return global thread num numbered from 0 ... */
@@ -36,22 +36,15 @@ Use the following two functions after you #include rex.h in the source code:
     
 The rex.h header file is located in `<install_path>/lib/clang/5.0.0/include` and you may need to put the `-I<install_path>/lib/clang/5.0.0/include` flag in compiler if you are not using clang. 
 
-### on fornax and using icc
+#### on fornax and using icc
 llvm-openmp runtime needs to be installed as standalone by following the above insturctions and replacing the official OpenMP runtime from icc by letting LD_LIBRARY_PATH points to the ompt-enabled openmp runtime library. 
+
+## To try omptool
+1. Go to example folder, check the [Makefile](examples/Makefile) and modify the two variable `OMPT_REX_INCLUDE` and `OMP_LIB_PATH` to point to right location of omp.h/ompt.h/rex.h files and the libomp.so lib as mentioned in the above. 
+1. make to compile the examples, e.g. axpy. Currently, to make building simple, we build all the objects of omptool in the application binary (axpy and matmul). This is not required. The omptool could be built into a library (libomptool.so, e.g.) and use LD_PRELOAD to load the omptool lib and we can directly execute axpy/matmul or other examples directly without the need to recompile the application. 
+1. make sure LD_LIBRARY_PATH to include the ompt-rex enabled libomp.so. Also to make sure axpy will use it, use `ldd axpy` to check the list of required library. 
+
 
 ## Reference and Documentation for OMPT and Visualization
  * The wiki page https://github.com/passlab/passlab.github.io/wiki/Visualization-of-Data-Layout-and-Access-of-Parallel-Program-for-Productive-Performance-Analysis-and-Tuning
  * Chapter 4 (tool support) of the latest OpenMP TR4 (http://www.openmp.org/wp-content/uploads/openmp-tr4.pdf)
- 
-## Development for visuomp (old)
-Modify the callback.h file to have each callback do different things and in the tests folder to rebuild mmomp and run to 
-test  your changes
-
-## Development for power steering (old)
-Build all power/freq related sources and the ompt_power.h file into one library libpowersteering.so
-
-When you build you application, link the application with the library. 
-icc or clang
-clang -fopenmp axpy.c -L<llvm-openmp-lib-location> -lomp  -lpowersteering -o axpy
-
-ldd axpy to check the executable uses the right library
