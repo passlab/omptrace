@@ -321,7 +321,7 @@ void pe_measure(double *package, double *pp0, double *pp1, double *dram) {
     }
 }
 
-double energy_consumed(double * begin, double * end) {
+double energy_consumed(double *begin, double *end) {
     double total = 0;
     int j;
     for (j = 0; j < total_packages; j++) {
