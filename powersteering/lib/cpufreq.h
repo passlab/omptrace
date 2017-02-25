@@ -216,11 +216,6 @@ int cpufreq_modify_policy_governor(unsigned int cpu, char *governor);
 int cpufreq_set_frequency(unsigned int cpu,
 				unsigned long target_frequency);
 
-/*Measuring the energy consumption*/
-void energy_measure_before();
-void energy_measure_after();
-void energy_measure_before_segment();
-double energy_measure_after_segment();
 #ifdef __cplusplus
 }
 #endif
