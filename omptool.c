@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include "omptool.h"
 
 /* so far we only handle max 256 threads */
@@ -7,12 +8,6 @@ ompt_trace_record_t epoch_begin;
 ompt_trace_record_t epoch_end;
 ompt_pe_trace_record_t pe_epoch_begin;
 ompt_pe_trace_record_t pe_epoch_end;
-
-void init_measurement() {
-    /* init power/energy measurement */
-    init_pe_units();
-    /* PAPI init here */
-}
 
 /* init thread map including allocate memory for storing the trace records
  *
@@ -36,10 +31,16 @@ void mark_region_begin(int thread_id) {
     thread_event_map_t *emap = get_event_map(thread_id);
     emap->last_region_begin++;
     emap->region_begin_stack[emap->last_region_begin] = emap->counter;
+    //printf("region begin: %d\n", emap->counter );
+}
+
+ompt_trace_record_t * get_last_region_begin(thread_event_map_t *emap) {
+    return &emap->records[emap->region_begin_stack[emap->last_region_begin]];
 }
 
 void mark_region_end(int thread_id) {
     thread_event_map_t *emap = get_event_map(thread_id);
+    //printf("region end: %d\n",  emap->region_begin_stack[emap->last_region_begin] );
     emap->last_region_begin--;
 }
 
@@ -62,6 +63,7 @@ ompt_trace_record_t *add_trace_record(int thread_id, int event_id, ompt_frame_t 
     rd->event_id = event_id;
     rd->frame = frame;
     rd->codeptr_ra = codeptr_ra;
+    //printf("Add trace record: %d\n", counter);
     return rd;
 }
 

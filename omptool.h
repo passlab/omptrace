@@ -39,7 +39,7 @@ typedef struct ompt_trace_record {
  * during the execution
  */
 typedef struct thread_event_map {
-    ompt_id_t thread_id;
+    int thread_id;
     ompt_data_t *thread_data;
     int counter;
     /* the stack for storing the record indices of the region_begin events.
@@ -62,6 +62,7 @@ extern ompt_pe_trace_record_t pe_epoch_end;
 #define get_event_map(thread_id) (&event_maps[thread_id])
 #define get_trace_record(thread_id, index) (&event_maps[thread_id].records[index])
 #define get_trace_record_from_emap(emap, index) (&emap->records[index])
+#define get_last_region_begin_record(emap) (&emap->records[emap->region_begin_stack[emap->last_region_begin]])
 
 /* functions for init/fini event map */
 extern void init_thread_event_map(int thread_id, ompt_data_t *thread_data);
@@ -75,7 +76,6 @@ extern void mark_region_end(int thread_id);
 extern ompt_trace_record_t *add_trace_record(int thread_id, int event_id, ompt_frame_t *frame, const void *codeptr_ra);
 extern void set_trace_parallel_id(int thread_id, int counter, ompt_id_t parallel_id);
 
-extern void init_measurement();
 extern void init_pe_units();
 
 /**

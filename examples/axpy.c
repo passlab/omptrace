@@ -34,7 +34,7 @@ double read_timer_ms() {
 /* initialize a vector with random floating point numbers */
 void init(REAL *A, int N) {
     int i;
-#pragma omp parallel for shared(A, N) private(i)
+//#pragma omp parallel for shared(A, N) private(i)
     for (i = 0; i < N; i++) {
         A[i] = (double) drand48();
     }
@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     memcpy(Y_parallel, Y_base, N * sizeof(REAL));
 
     int i;
-    int num_runs = 1;
+    int num_runs = 20;
   
     double elapsed_omp_parallel_for = read_timer();
     for (i=0; i<num_runs; i++) axpy_omp_parallel_for(N, Y_parallel, X, a);

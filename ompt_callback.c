@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <execinfo.h>
-#include <sched.h>
-#include "cpufreq.h"
+#include <sys/timeb.h>
 
 #ifdef OMPT_USE_LIBUNWIND
 #define UNW_LOCAL_ONLY
@@ -34,7 +33,19 @@ static ompt_get_thread_data_t ompt_get_thread_data;
 static ompt_get_parallel_info_t ompt_get_parallel_info;
 static ompt_get_unique_id_t ompt_get_unique_id;
 
-double ompt_time;
+static double read_timer() {
+    struct timeb tm;
+    ftime(&tm);
+    return (double) tm.time + (double) tm.millitm / 1000.0;
+}
+
+/* read timer in ms */
+static double read_timer_ms() {
+    struct timeb tm;
+    ftime(&tm);
+    return (double) tm.time * 1000.0 + (double) tm.millitm;
+}
+
 #ifdef USERSPACE
 //extern int iteration_ompt;
 //int inner_counter = 0;
@@ -164,12 +175,14 @@ on_ompt_callback_parallel_begin(
         ompt_invoker_t invoker,
         const void *codeptr_ra) {
     parallel_data->value = ompt_get_unique_id();
-    ompt_id_t thread_id = rex_get_global_thread_num();
+    int thread_id = rex_get_global_thread_num();
     ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_parallel_begin, NULL, codeptr_ra);
     record->parallel_id = parallel_data->value;
-    record->time_stamp = omp_get_wtime();
-    mark_region_begin(thread_id);
+    record->time_stamp = read_timer();
+#ifdef PE_MEASUREMENT_SUPPORT
     add_pe_measurement(record);
+#endif
+    mark_region_begin(thread_id);
     //print_ids(4);
 }
 
@@ -179,19 +192,20 @@ on_ompt_callback_parallel_end(
         ompt_task_data_t *task_data,
         ompt_invoker_t invoker,
         const void *codeptr_ra) {
-    ompt_id_t thread_id = rex_get_global_thread_num();
+    int thread_id = rex_get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
     ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_parallel_end, NULL, codeptr_ra);
-    end_record->time_stamp = omp_get_wtime();
+    end_record->time_stamp = read_timer();
     end_record->parallel_id = parallel_data->value;
+    ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
+    printf("Total time: %.3f(s)\n", end_record->time_stamp - begin_record->time_stamp);
+#ifdef PE_MEASUREMENT_SUPPORT
     add_pe_measurement(end_record);
-
     /* find the trace record for the begin_event of the parallel region */
-    ompt_trace_record_t *begin_record = get_trace_record(thread_id, emap->last_region_begin);
 
     double energy = energy_consumed(begin_record->pe_record->package, end_record->pe_record->package);
     printf("Energy_consumed:%.6fj, Time elasped: %fs\n", energy, end_record->time_stamp - begin_record->time_stamp);
-
+#endif
     mark_region_end(thread_id);
 
 /*
@@ -213,17 +227,21 @@ static void
 on_ompt_callback_thread_begin(
         ompt_thread_type_t thread_type,
         ompt_data_t *thread_data) {
-    ompt_id_t thread_id = rex_get_global_thread_num();
+    int thread_id = rex_get_global_thread_num();
     init_thread_event_map(thread_id, thread_data);
     thread_data->value = ompt_get_unique_id();
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_thread_begin, NULL, NULL);
+    record->time_stamp = read_timer();
     //printf("%" PRIu64 ": ompt_event_thread_begin: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
 }
 
 static void
 on_ompt_callback_thread_end(
         ompt_data_t *thread_data) {
-    ompt_id_t thread_id = rex_get_global_thread_num();
-    fini_thread_event_map(thread_id);
+    int thread_id = rex_get_global_thread_num();
+    thread_data->value = ompt_get_unique_id();
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_thread_end, NULL, NULL);
+//    fini_thread_event_map(thread_id);
     //printf("%" PRIu64 ": ompt_event_thread_end: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data->value);
     //printf("%" PRIu64 ": ompt_event_thread_end: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
 }
@@ -271,9 +289,11 @@ int ompt_initialize(
 */
 #endif
 
-    init_measurement();
-    epoch_begin.time_stamp = omp_get_wtime();
+    epoch_begin.time_stamp = read_timer();
+#ifdef PE_MEASUREMENT_SUPPORT
+    init_pe_units();
     pe_measure(pe_epoch_begin.package, pe_epoch_begin.pp0, pe_epoch_begin.pp1, pe_epoch_begin.dram);
+#endif
     return 1; //success
 }
 
@@ -281,9 +301,10 @@ void ompt_finalize(ompt_fns_t *fns) {
     // on_ompt_event_runtime_shutdown();
 
     /* stop the RAPL power collection and read the power/energy info */
-    epoch_end.time_stamp = omp_get_wtime();
+    epoch_end.time_stamp = read_timer();
+    printf("Total time: %.3f(s)\n", epoch_end.time_stamp - epoch_begin.time_stamp);
+#ifdef PE_MEASUREMENT_SUPPORT
     pe_measure(pe_epoch_end.package, pe_epoch_end.pp0, pe_epoch_end.pp1, pe_epoch_end.dram);
-    printf("Total time: %.2f(s)\n", epoch_end.time_stamp - epoch_begin.time_stamp);
     printf("\t\tPackage energy: %.6fJ\n",
            energy_consumed(pe_epoch_begin.package, pe_epoch_end.package));
     printf("\t\tPowerPlane0 (cores): %.6fJ\n",
@@ -292,6 +313,7 @@ void ompt_finalize(ompt_fns_t *fns) {
            energy_consumed(pe_epoch_begin.pp1, pe_epoch_end.pp1));
     printf("\t\tDRAM: %.6fJ\n",
            energy_consumed(pe_epoch_begin.dram, pe_epoch_end.dram));
+#endif
 }
 
 ompt_fns_t *ompt_start_tool(

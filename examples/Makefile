@@ -8,8 +8,8 @@ OMPT_REX_INCLUDE=${OMP_STANDALONE_INSTALL}/include
 OMP_LIB_PATH=${OMP_STANDALONE_INSTALL}/lib
 
 # on yan's vm setup
-# OMPT_REX_INCLUDE=/home/yan/tools/llvm-openmp/BUILD/runtime/src
-# OMP_LIB_PATH=/home/yan/tools/llvm-openmp/BUILD/runtime/src
+OMPT_REX_INCLUDE=/home/yan/tools/llvm-openmp/BUILD/runtime/src
+OMP_LIB_PATH=/home/yan/tools/llvm-openmp/BUILD/runtime/src
 
 CFLAGS=-lomp -lm -g
 LIB_SRC=../cpufreq.c ../pe_measurement.c ../omptool.c ../ompt_callback.c
