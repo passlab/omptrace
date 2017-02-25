@@ -1,15 +1,24 @@
 
 ## Visu and power steering tool using OMPT
 
-## Prerequisite Installation
+## Prerequisite and Installation
 1. OpenMP implementation that supports OMPT interface, which is the omptool branch of the https://github.com/passlab/llvm-openmp REX repo. The omptool branch merged the official llvm-openmp repo with the following two changes:
     1. The implementation of the latest OMPT (https://github.com/OpenMPToolsInterface/LLVM-openmp/tree/towards_tr4)
     1. The master branch of the REX repo, which mainly provided two functions for omptool (one to retrieve the unique thread number (0, 1, ...) and the other for returning the total num of threads in the runtime system), see below. llvm-openmp actually provide those functions, but are not exposed.
+    
+For installation, the omptool branch can either be installed standalone or with llvm/clang compiler. 
+    1. clone the repo and checkout the omptool branch (standalone or in the llvm/clang source tree)
+           git clone https://github.com/passlab/llvm-openmp
+           git checkout omptool
+    1. cmake to create the makefile with OMPT_SUPPORT and REX_SUPPORT enabled
+           mkdir BUILD
+           cd BUILD
+           cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=TRUE -DLIBOMP_REX_SUPPORT=TRUE -DCMAKE_INSTALL_PREFIX=<install_path> ../llvm-openmp
+           
+           
+    
 
 
-The omptool which is so far the only 
-runtime that support the latest TR4 OMPT. Make sure you put -DLIBOMP_OMPT_SUPPORT=TRUE in cmake when building the runtime, and 
-export the library path to the LD_LIBRARY_PATH env. 
 
 ### On orion.ec.oakland.edu
 the compiler and runtime are already installed in /opt/llvm/llvm-ompt-install, so set the following
