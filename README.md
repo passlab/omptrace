@@ -6,7 +6,8 @@
     1. The implementation of the latest OMPT (https://github.com/OpenMPToolsInterface/LLVM-openmp/tree/towards_tr4)
     1. The master branch of the REX repo, which mainly provided two functions for omptool (one to retrieve the unique thread number (0, 1, ...) and the other for returning the total num of threads in the runtime system), see below. llvm-openmp actually provide those functions, but are not exposed.
     
-### For installation of the omptool branch, which can be installed either standalone or with llvm/clang compiler. 
+### Installation of the omptool branch
+The omptool branch can be installed either standalone or with llvm/clang compiler. 
   1. clone the repo and checkout the omptool branch (standalone or in the llvm/clang source tree)
    
            git clone https://github.com/passlab/llvm-openmp
