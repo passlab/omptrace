@@ -8,9 +8,12 @@
     
 For installation, the omptool branch can either be installed standalone or with llvm/clang compiler. 
     1. clone the repo and checkout the omptool branch (standalone or in the llvm/clang source tree)
+    
            git clone https://github.com/passlab/llvm-openmp
            git checkout omptool
+           
     1. cmake to create the makefile with OMPT_SUPPORT and REX_SUPPORT enabled
+    
            mkdir BUILD
            cd BUILD
            cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=TRUE -DLIBOMP_REX_SUPPORT=TRUE -DCMAKE_INSTALL_PREFIX=<install_path> ../llvm-openmp
