@@ -310,6 +310,7 @@ void ompt_finalize(ompt_fns_t *fns) {
     epoch_end.time_stamp = read_timer();
     printf("Total time: %.3f(s)", epoch_end.time_stamp - epoch_begin.time_stamp);
 #ifdef PE_MEASUREMENT_SUPPORT
+    pe_measure(pe_epoch_end.package, pe_epoch_end.pp0, pe_epoch_end.pp1, pe_epoch_end.dram);
     double package_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
     double pp0_energy = energy_consumed(pe_epoch_begin.pp0, pe_epoch_end.pp0);
     double pp1_energy = energy_consumed(pe_epoch_begin.pp1, pe_epoch_end.pp1);
