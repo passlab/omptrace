@@ -204,10 +204,10 @@ on_ompt_callback_parallel_end(
     ompt_pe_trace_record_t * end_pe_record = add_pe_measurement(end_record);
     ompt_pe_trace_record_t * begin_pe_record = begin_record->pe_record;
     double package_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
-    double pp0_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
-    double pp1_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
-    double dram_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
-    double total_energy = package_energy + pp0_energy + pp1_energy + dram_energy;
+    double pp0_energy = energy_consumed(begin_pe_record->pp0, end_pe_record->pp0);
+    double pp1_energy = energy_consumed(begin_pe_record->pp1, end_pe_record->pp1);
+    double dram_energy = energy_consumed(begin_pe_record->dram, end_pe_record->dram);
+    double total_energy = package_energy + dram_energy;
     printf(", Energy total: %.6fj(package: %.6fj, PP0: %.6fj, PP1: %.6fj, and DRAM: %.6fj)\n", total_energy,
             package_energy, pp1_energy, pp0_energy, dram_energy);
 #endif
@@ -311,10 +311,10 @@ void ompt_finalize(ompt_fns_t *fns) {
     printf("Total time: %.3f(s)", epoch_end.time_stamp - epoch_begin.time_stamp);
 #ifdef PE_MEASUREMENT_SUPPORT
     double package_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
-    double pp0_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
-    double pp1_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
-    double dram_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
-    double total_energy = package_energy + pp0_energy + pp1_energy + dram_energy;
+    double pp0_energy = energy_consumed(pe_epoch_begin.pp0, pe_epoch_end.pp0);
+    double pp1_energy = energy_consumed(pe_epoch_begin.pp1, pe_epoch_end.pp1);
+    double dram_energy = energy_consumed(pe_epoch_begin.dram, pe_epoch_end.dram);
+    double total_energy = package_energy + dram_energy;
     printf(", Energy total: %.6fj(package: %.6fj, PP0: %.6fj, PP1: %.6fj, and DRAM: %.6fj)\n", total_energy,
             package_energy, pp1_energy, pp0_energy, dram_energy);
 #endif
