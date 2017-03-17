@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <execinfo.h>
 #include <sys/timeb.h>
+#include <sched.h>
 
 #ifdef OMPT_USE_LIBUNWIND
 #define UNW_LOCAL_ONLY
@@ -10,6 +11,7 @@
 
 #include <omp.h>
 #include <ompt.h>
+#include <ompt-internal.h>
 #include <rex.h>
 #include "omptool.h"
 
@@ -46,19 +48,6 @@ static double read_timer_ms() {
     return (double) tm.time * 1000.0 + (double) tm.millitm;
 }
 
-#ifdef USERSPACE
-//extern int iteration_ompt;
-//int inner_counter = 0;
-double ompt_parallel_time;
-unsigned long high_freq = 2300000;
-unsigned long low_freq  = 1300000;
-unsigned long kernelCpuId_freq[72];
-int state_of_idle[72] = {1}; // 0 is in the beginning of idle state; 1 means the end of idle state. 
-int ompt_num_threads;
-int first_time = 1;// 1 is the first time for running the parallel code, 0 is not
-extern thread_event_map_t event_maps[256];
-#endif
-
 static void print_ids(int level) {
     ompt_frame_t *frame;
     ompt_data_t *parallel_data;
@@ -75,7 +64,7 @@ static void print_ids(int level) {
                exists_task ? task_data->value : 0, frame);
 }
 
-/*
+#ifdef OMPT_USE_LIBUNWIND
 #define print_frame(level)\
 do {\
   unw_cursor_t cursor;\
@@ -98,11 +87,12 @@ do {\
     printf("%" PRIu64 ": __builtin_frame_address(%d)=%p\n", ompt_get_thread_data()->value, level, NULL);\
 } while(0)
 
+#else
 #define print_frame(level)\
 do {\
   printf("%" PRIu64 ": __builtin_frame_address(%d)=%p\n", ompt_get_thread_data()->value, level, __builtin_frame_address(level));\
 } while(0)
-*/
+#endif
 
 static void print_current_address() {
     int real_level = 2;
@@ -119,49 +109,84 @@ static void print_current_address() {
 }
 
 static void
+on_ompt_callback_idle_spin(
+        void * data) {
+    int thread_id = rex_get_global_thread_num();
+    thread_event_map_t *emap = get_event_map(thread_id);
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle_spin, NULL, NULL);
+    record->time_stamp = read_timer();
+  //  printf("Thread: %d idle spin\n", thread_id);
+}
+
+static void
+on_ompt_callback_idle_suspend(
+        void * data) {
+    int thread_id = rex_get_global_thread_num();
+    thread_event_map_t *emap = get_event_map(thread_id);
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle_spin, NULL, NULL);
+    record->time_stamp = read_timer();
+//    printf("Thread: %d idle suspend\n", thread_id);
+}
+
+
+static void
 on_ompt_callback_idle(
         ompt_scope_endpoint_t endpoint) {
-#ifdef USERSPACE
-    int id = sched_getcpu();
-    int pair_id;
-#endif
+    int thread_id = rex_get_global_thread_num();
+    thread_event_map_t *emap = get_event_map(thread_id);
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle, NULL, NULL);
+    record->event_id_additional = endpoint;
+    record->time_stamp = read_timer();
+
     switch (endpoint) {
-        case ompt_scope_begin:
-            //printf("%" PRIu64 ": ompt_event_idle_begin:\n", ompt_get_thread_data()->value);
-            //printf("%" PRIu64 ": ompt_event_idle_begin: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data.value);
-#ifdef USERSPACE
-            //if((id != 36 || id != 0) && event_maps[0].time_consumed > 0.1)
-            if(id != 36 || id != 0)
-            {
-              /*set up the state of kernel cpu id as the beginning of idle.*/
-              state_of_idle[id] = 0;
-              /*pair id of the current in the same core*/
-              if(id<36) pair_id = id+36;
-              else pair_id = id-36;
-              /*if both kernel cpu id are at the idle state, set up both as low frequency */
-                  if(state_of_idle[id] == 0 && state_of_idle[pair_id] == 0)
-                  {
-                      cpufreq_set_frequency(id,low_freq);
-                      event_maps[id].records[0].frequency = low_freq;
-                      cpufreq_set_frequency(pair_id,low_freq);
-                      event_maps[pair_id].records[0].frequency = low_freq;
-                  }
+        case ompt_scope_begin: {
+#ifdef PE_OPTIMIZATION_SUPPORT
+            int id = sched_getcpu();
+            int coreid = id % TOTAL_NUM_CORES;
+            int pair_id;
+            if (id < TOTAL_NUM_CORES) pair_id = id + TOTAL_NUM_CORES;
+            else pair_id = id - TOTAL_NUM_CORES;
+
+            HWTHREADS_IDLE_FLAG[id] = 0;
+            /* TODO: memory fence here */
+            if (HWTHREADS_IDLE_FLAG[id] == 0 && HWTHREADS_IDLE_FLAG[pair_id] == 0) {
+                record->frequency = pe_adjust_freq(coreid, CORE_LOW_FREQ);
+                HWTHREADS_FREQ[id] = record->frequency;
+            }
+
+            //if((id != TOTAL_NUM_CORES || id != 0) && event_maps[0].time_consumed > 0.1)
+            if (id != TOTAL_NUM_CORES && id != 0) {
+                /*set up the state of kernel cpu id as the beginning of idle.*/
+                record->frequency = pe_adjust_freq(id, CORE_LOW_FREQ);
+                /*pair id of the current in the same core*/
+                /*if both kernel cpu id are at the idle state, set up both as low frequency */
             }
 #endif
+            mark_region_begin(thread_id);
+   //         printf("Thread: %d idle begin\n", thread_id);
+   //         print_frame(0);
+   //         printf("frame  address: %p\n", OMPT_GET_FRAME_ADDRESS(0));
+   //         printf("return address: %p\n", OMPT_GET_RETURN_ADDRESS(0));
             break;
-        case ompt_scope_end:
-            //printf("%" PRIu64 ": ompt_event_idle_end:\n", ompt_get_thread_data()->value);
-            //printf("%" PRIu64 ": ompt_event_idle_end: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data.value);
-#ifdef USERSPACE
-            //if((id != 36 || id != 0) && event_maps[0].time_consumed > 0.1)
-            if(id != 36 || id != 0)
-            {
-              cpufreq_set_frequency(id,high_freq);
-              event_maps[id].records[0].frequency = high_freq;
-              state_of_idle[id] = 1;
+        }
+        case ompt_scope_end: {
+#ifdef PE_OPTIMIZATION_SUPPORT
+            int id = sched_getcpu();
+            int pair_id;
+
+            if (id != TOTAL_NUM_CORES && id != 0) {
+                /*set up the state of kernel cpu id as the beginning of idle.*/
+                HWTHREADS_IDLE_FLAG[id] = 1;
+                record->frequency = pe_adjust_freq(id, CORE_HIGH_FREQ);
             }
 #endif
+            ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
+            /* link two event together */
+            link_records(begin_record, record);
+            mark_region_end(thread_id);
+            //printf("Thread: %d idle end\n", thread_id);
             break;
+        }
     }
 }
 
@@ -176,13 +201,26 @@ on_ompt_callback_parallel_begin(
         const void *codeptr_ra) {
     parallel_data->value = ompt_get_unique_id();
     int thread_id = rex_get_global_thread_num();
+    thread_event_map_t * emap = &event_maps[thread_id];
     ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_parallel_begin, NULL, codeptr_ra);
-    record->parallel_id = parallel_data->value;
+    record->ompt_id = parallel_data->value;
+    //record->user_frame = OMPT_GET_FRAME_ADDRESS(0); /* the frame of the function who calls __kmpc_fork_call */
+    //record->codeptr_ra = OMPT_GET_RETURN_ADDRESS(1); /* the address of the function who calls __kmpc_fork_call */
+    record->user_frame = parent_task_frame->reenter_runtime_frame;
+    record->codeptr_ra = codeptr_ra;
+
     record->time_stamp = read_timer();
+
 #ifdef PE_MEASUREMENT_SUPPORT
     add_pe_measurement(record);
 #endif
+#ifdef PAPI_MEASUREMENT_SUPPORT
+    add_papi_measurement_start_counters(record);
+#endif
+    enqueu_parallel(emap, emap->counter);
     mark_region_begin(thread_id);
+    //printf("Thread: %d parallel begin: FRAME_ADDRESS: %p, LOCATION: %p, exit_runtime_frame: %p, reenter_runtime_frame: %p, codeptr_ra: %p\n",
+    //thread_id, record->user_frame, record->codeptr_ra, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, codeptr_ra);
     //print_ids(4);
 }
 
@@ -196,17 +234,23 @@ on_ompt_callback_parallel_end(
     thread_event_map_t *emap = get_event_map(thread_id);
     ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_parallel_end, NULL, codeptr_ra);
     end_record->time_stamp = read_timer();
-    end_record->parallel_id = parallel_data->value;
+    end_record->ompt_id = parallel_data->value;
     /* find the trace record for the begin_event of the parallel region */
     ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
 
     /* pair the begin and end event together so we create a double-link between each other */
-    begin_record->match_record = emap->counter;
-    end_record->match_record = emap->region_begin_stack[emap->last_region_begin];
+    link_records(begin_record, end_record);
 
-    printf("Total time: %.3f(s)", end_record->time_stamp - begin_record->time_stamp);
 #ifdef PE_MEASUREMENT_SUPPORT
     ompt_pe_trace_record_t * end_pe_record = add_pe_measurement(end_record);
+#endif
+#ifdef PAPI_MEASUREMENT_SUPPORT
+    ompt_papi_stop_counters(begin_record->papi_record);
+#endif
+
+#ifdef ONLINE_TRACING_PRINT
+    printf("Total time: %.3f(s)", end_record->time_stamp - begin_record->time_stamp);
+#ifdef PE_MEASUREMENT_SUPPORT
     ompt_pe_trace_record_t * begin_pe_record = begin_record->pe_record;
     double package_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
     double pp0_energy = energy_consumed(begin_pe_record->pp0, end_pe_record->pp0);
@@ -217,17 +261,19 @@ on_ompt_callback_parallel_end(
             package_energy, pp1_energy, pp0_energy, dram_energy);
 #endif
     printf("\n");
+#endif
     mark_region_end(thread_id);
-
+    printf("Thread: %d parallel end\n", thread_id);
+    list_past_parallels(emap);
 /*
   if(inner_counter == iteration_ompt)
   {
 	int i;
 	for(i = 0;i<72;i++)
-		if(i != 0 || i != 36)
+		if(i != 0 || i != TOTAL_NUM_CORES)
 		{
-		cpufreq_set_frequency(i,low_freq);
-                event_maps[i].frequency = low_freq;
+		cpufreq_set_frequency(i,CORE_LOW_FREQ);
+                event_maps[i].frequency = CORE_LOW_FREQ;
 		}
   }
   else inner_counter++;
@@ -240,11 +286,12 @@ on_ompt_callback_thread_begin(
         ompt_data_t *thread_data) {
     int thread_id = rex_get_global_thread_num();
     init_thread_event_map(thread_id, thread_data);
-    thread_data->value = ompt_get_unique_id();
+    thread_data->value = thread_id; //ompt_get_unique_id();
     ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_thread_begin, NULL, NULL);
     record->time_stamp = read_timer();
     mark_region_begin(thread_id);
     //printf("%" PRIu64 ": ompt_event_thread_begin: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
+    //printf("Thread: %d thread begin\n", thread_id);
 }
 
 static void
@@ -252,14 +299,13 @@ on_ompt_callback_thread_end(
         ompt_data_t *thread_data) {
     int thread_id = rex_get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
-    thread_data->value = ompt_get_unique_id();
     ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_thread_end, NULL, NULL);
     ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
 
     /* pair the begin and end event together so we create a double-link between each other */
-    begin_record->match_record = emap->counter;
-    end_record->match_record = emap->region_begin_stack[emap->last_region_begin];
+    link_records(begin_record, end_record);
 //    fini_thread_event_map(thread_id);
+    //printf("Thread: %d thread end\n", thread_id);
 }
 
 #define register_callback_t(name, type)                       \
@@ -268,7 +314,7 @@ do{                                                           \
   if (ompt_set_callback(name, (ompt_callback_t)f_##name) ==   \
       ompt_set_never)                                         \
     printf("0: Could not register callback '" #name "'\n");   \
-}while(0)
+} while(0)
 
 #define register_callback(name) register_callback_t(name, name##_t)
 
@@ -281,28 +327,37 @@ int ompt_initialize(
     ompt_get_parallel_info = (ompt_get_parallel_info_t) lookup("ompt_get_parallel_info");
     ompt_get_unique_id = (ompt_get_unique_id_t) lookup("ompt_get_unique_id");
     register_callback(ompt_callback_idle);
+//    register_callback(ompt_callback_idle_spin);
+    register_callback(ompt_callback_idle_suspend);
     register_callback(ompt_callback_parallel_begin);
     register_callback(ompt_callback_parallel_end);
     register_callback(ompt_callback_thread_begin);
     register_callback(ompt_callback_thread_end);
-#ifdef USERSPACE
+#ifdef PE_OPTIMIZATION_SUPPORT
+    /* check the system to find total number of hardware cores, total number of hw threads (kernel processors),
+     * SMT way and mapping of hwthread id with core id
+     */
     int i;
-    //ompt_num_threads = omp_get_num_threads();
-    /*for(i = 0;i<ompt_num_threads;i++)
+    int coreid = sched_getcpu() % TOTAL_NUM_CORES;
+    int hwth2id = coreid + TOTAL_NUM_CORES; /* NOTES: this only works for 2-way hyperthreading/SMT */
+    for(i = 0; i < TOTAL_NUM_CORES; i++)
     {
-            kernelCpuId_freq[i] = high_freq;
+        if (coreid == i) {
+            HWTHREADS_FREQ[i] = CORE_HIGH_FREQ;
+            cpufreq_set_frequency(i, CORE_HIGH_FREQ);
+        } else {
+            HWTHREADS_FREQ[i] = CORE_LOW_FREQ;
+            cpufreq_set_frequency(i, CORE_LOW_FREQ);
+        }
     }
-    for(i = 0;i<72;i++)
-            if(i != 0 || i != 36)
-            {
-            cpufreq_set_frequency(i,low_freq);
-            event_maps[i].frequency = low_freq;
-            }
-    else{
-    cpufreq_set_frequency(i,high_freq);
-            event_maps[i].frequency = high_freq;
+
+    for (; i<TOTAL_NUM_HWTHREADS; i++) {
+        if (hwth2id == i) {
+            HWTHREADS_FREQ[i] = CORE_HIGH_FREQ;
+        } else {
+            HWTHREADS_FREQ[i] = CORE_LOW_FREQ;
+        }
     }
-*/
 #endif
 
     epoch_begin.time_stamp = read_timer();
@@ -318,9 +373,12 @@ void ompt_finalize(ompt_fns_t *fns) {
 
     /* stop the RAPL power collection and read the power/energy info */
     epoch_end.time_stamp = read_timer();
-    printf("Total time: %.3f(s)", epoch_end.time_stamp - epoch_begin.time_stamp);
 #ifdef PE_MEASUREMENT_SUPPORT
     pe_measure(pe_epoch_end.package, pe_epoch_end.pp0, pe_epoch_end.pp1, pe_epoch_end.dram);
+#endif
+
+    printf("Total time: %.3f(s)", epoch_end.time_stamp - epoch_begin.time_stamp);
+#ifdef PE_MEASUREMENT_SUPPORT
     double package_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
     double pp0_energy = energy_consumed(pe_epoch_begin.pp0, pe_epoch_end.pp0);
     double pp1_energy = energy_consumed(pe_epoch_begin.pp1, pe_epoch_end.pp1);

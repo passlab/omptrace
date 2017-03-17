@@ -2,7 +2,6 @@
 // Created by yan on 2/24/17.
 //
 
-
 #include <stdio.h>
 #include <errno.h>
 #include <stdlib.h>
@@ -12,6 +11,8 @@
 #include <inttypes.h>
 #include <math.h>
 #include <linux/perf_event.h>
+#include "cpufreq.h"
+#include "omptool.h"
 
 /*
  * CPU energy measurements and power changing by RAPL
@@ -319,6 +320,20 @@ void pe_measure(double *package, double *pp0, double *pp1, double *dram) {
 
         close(fd);
     }
+}
+
+unsigned long pe_adjust_freq(int id, unsigned long freq) {
+#if defined(PE_OPTIMIZATION_DVFS)
+    if (cpufreq_set_frequency(id, CORE_LOW_FREQ) == 0) {
+        return CORE_LOW_FREQ;
+    } else return -1; /* failure */
+#elif defined(PE_OPTIMIZATION_CLOCK_MODULATION)
+
+#elif defined(PE_OPTIMIZATION_POWER_CAPPING)
+
+#else
+#endif
+    return -1;
 }
 
 double energy_consumed(double *begin, double *end) {

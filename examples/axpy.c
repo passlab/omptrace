@@ -34,7 +34,7 @@ double read_timer_ms() {
 /* initialize a vector with random floating point numbers */
 void init(REAL *A, int N) {
     int i;
-//#pragma omp parallel for shared(A, N) private(i)
+#pragma omp parallel for shared(A, N) private(i)
     for (i = 0; i < N; i++) {
         A[i] = (double) drand48();
     }
@@ -75,12 +75,15 @@ int main(int argc, char *argv[]) {
     memcpy(Y_parallel, Y_base, N * sizeof(REAL));
 
     int i;
-    int num_runs = 20;
+    int num_runs = 4;
   
     double elapsed_omp_parallel_for = read_timer();
-    for (i=0; i<num_runs; i++) axpy_omp_parallel_for(N, Y_parallel, X, a);
+    for (i=0; i<num_runs; i++) {
+//	  int dummy[(i+1)*1024];
+          axpy_omp_parallel_for(N, Y_parallel, X, a);
+//	  dummy[0] = 10232;
+    }
     elapsed_omp_parallel_for = (read_timer() - elapsed_omp_parallel_for)/num_runs;
- 
     
     // you should add the call to each function and time the execution 
     printf("======================================================================================================\n");
@@ -91,7 +94,7 @@ int main(int argc, char *argv[]) {
      printf("axpy_omp_parallel_for:\t\t%4f\t%4f \t\t%g\n", elapsed_omp_parallel_for * 1.0e3, (2.0 * N) / (1.0e6 * elapsed_omp_parallel_for), check(Y_base,Y_parallel, N));
 
     //printf("\tElapsed time:\t%4f(ms)\n\n", elapsed_omp_parallel_for * 1.0e3);
-    
+    sleep(1); 
     free(Y_base);
     free(Y_parallel);
     free(X);
@@ -101,6 +104,12 @@ int main(int argc, char *argv[]) {
  
 void axpy_omp_parallel_for(int N, REAL *Y, REAL *X, REAL a) {
     int i;
+    #pragma omp parallel shared(N, X, Y, a) private(i)
+    #pragma omp for
+    for (i = 0; i < N; ++i){
+        Y[i] += a * X[i];
+	}
+    
     #pragma omp parallel shared(N, X, Y, a) private(i)
     #pragma omp for
     for (i = 0; i < N; ++i){
