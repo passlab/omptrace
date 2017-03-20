@@ -11,7 +11,6 @@
 
 #include <omp.h>
 #include <ompt.h>
-#include <ompt-internal.h>
 #include <rex.h>
 #include "omptool.h"
 
@@ -203,6 +202,7 @@ on_ompt_callback_parallel_begin(
     int thread_id = rex_get_global_thread_num();
     thread_event_map_t * emap = &event_maps[thread_id];
     ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_parallel_begin, NULL, codeptr_ra);
+    record->team_size = requested_team_size;
     record->ompt_id = parallel_data->value;
     //record->user_frame = OMPT_GET_FRAME_ADDRESS(0); /* the frame of the function who calls __kmpc_fork_call */
     //record->codeptr_ra = OMPT_GET_RETURN_ADDRESS(1); /* the address of the function who calls __kmpc_fork_call */

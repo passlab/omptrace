@@ -58,6 +58,7 @@ long long papi_counter_values[NUM_PAPI_EVENTS];
 typedef struct ompt_trace_record {
     ompt_id_t ompt_id;
     ompt_id_t thread_id_inteam;
+    int team_size;
     int event_id;
     short event_id_additional; /* additional info about the event, e.g. begin event of a callback_idle */
     ompt_id_t graph_id;
@@ -123,6 +124,7 @@ extern void mark_region_begin(int thread_id);
 extern void mark_region_end(int thread_id);
 extern void enqueu_parallel(thread_event_map_t * emap, int rid);
 extern void list_past_parallels(thread_event_map_t * emap);
+extern void list_cached_past_parallels(thread_event_map_t * emap);
 extern ompt_trace_record_t *add_trace_record(int thread_id, int event_id, ompt_frame_t *frame, const void *codeptr_ra);
 extern void link_records(ompt_trace_record_t * begin, ompt_trace_record_t * end);
 extern void set_trace_parallel_id(int thread_id, int counter, ompt_id_t parallel_id);

@@ -82,13 +82,27 @@ void enqueu_parallel(thread_event_map_t * emap, int rid) {
 }
 
 void list_past_parallels(thread_event_map_t * emap) {
+    int i;
+    printf("Past Parallels:\n");
+    printf("ID(Event ID)\t\tFrame\t\tAddress\t\tTime\t\t#threads\n");
+    for (i=emap->counter; i>=0; i--) {
+        ompt_trace_record_t * record = &emap->records[i];
+        if (record->event_id == ompt_callback_parallel_begin) {
+            printf("%llu(%d)\t%p\t%p\t%.2f\t%d\n", record->ompt_id, i, record->user_frame,
+                   record->codeptr_ra, record->time_stamp, record->team_size);
+        }
+    };
+}
+
+void list_cached_past_parallels(thread_event_map_t * emap) {
     int i = emap->oldest_parallel;
     printf("Past Parallels:\n");
-    printf("ID(Event ID)\t\tFrame\t\tAddress\t\tTime\n");
+    printf("ID(Event ID)\t\tFrame\t\tAddress\t\tTime\t\t#threads\n");
     while(1) {
         int record_id = emap->past_parallell_regions[i];
         ompt_trace_record_t * record = &emap->records[record_id];
-        printf("%llu(%d)\t%p\t%p\t%.2f\n", record->ompt_id, record_id, record->user_frame, record->codeptr_ra, record->time_stamp);
+        printf("%llu(%d)\t%p\t%p\t%.2f\t%d\n", record->ompt_id, record_id, record->user_frame,
+               record->codeptr_ra, record->time_stamp, record->team_size);
         if (i == emap->youngest_parallel) break;
         i++;
         if (i == MAX_HIST_PARALLEL) i = 0;
