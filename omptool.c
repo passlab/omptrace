@@ -35,8 +35,8 @@ void init_thread_event_map(int thread_id, ompt_data_t *thread_data) {
     emap->thread_data = thread_data;
     emap->counter = -1;
     emap->innermost_region_begin = -1;
-    emap->youngest_parallel = -1;
-    emap->oldest_parallel = -1;
+    emap->src_parallel_region_last_index = -2;
+    emap->src_parallel_region_recent = -1;
     emap->records = (ompt_trace_record_t *) malloc(sizeof(ompt_trace_record_t) * MAX_NUM_RECORDS);
 }
 
@@ -63,22 +63,54 @@ void mark_region_end(int thread_id) {
     emap->innermost_region_begin--;
 }
 
-void enqueu_parallel(thread_event_map_t * emap, int rid) {
-    int youngest = ++ emap->youngest_parallel ;
-    if (youngest == MAX_HIST_PARALLEL) { /* wrap to the beginning of the queue array */
-        youngest = 0;
-        emap->youngest_parallel = 0;
+void add_parallel_src(thread_event_map_t * emap, const void * codeptr_ra, ompt_trace_record_t * record) {
+    if (emap->src_parallel_region_recent == -1) { /* the very first parallel trace record */
+        emap->src_parallel_region_recent = 0;
+        emap->src_parallel_region_last_index = 0;
+        emap->src_parallel_regions[0].codeptr_ra = codeptr_ra;
+        emap->src_parallel_regions[0].most_recent = record;
+        record->next = NULL;
+        return;
     }
 
-    if (youngest == emap->oldest_parallel) { /* wrap */
-        emap->oldest_parallel++;
-        if (emap->oldest_parallel == MAX_HIST_PARALLEL)
-            emap->oldest_parallel = 0;
-    } else if (emap->oldest_parallel == -1) { /* the first one */
-        emap->oldest_parallel = 0;
-    } else {} /* not full or empty */
+    int i;
 
-    emap->past_parallell_regions[youngest] = rid;
+    /* search forward from the most recent one */
+    for (i=emap->src_parallel_region_recent; i<=emap->src_parallel_region_last_index; i++) {
+        if (emap->src_parallel_regions[i].codeptr_ra == codeptr_ra) {
+            emap->src_parallel_region_recent = i;
+
+            ompt_parallel_src_t * srcp = &emap->src_parallel_regions[i];
+            record->next = srcp->most_recent;
+            srcp->most_recent = record;
+            return;
+        }
+    }
+    /* search from 0 to most recent one */
+    for (i=0; i<emap->src_parallel_region_recent; i++) {
+        if (emap->src_parallel_regions[i].codeptr_ra == codeptr_ra) {
+            emap->src_parallel_region_recent = i;
+
+            ompt_parallel_src_t *srcp = &emap->src_parallel_regions[i];
+            record->next = srcp->most_recent;
+            srcp->most_recent = record;
+            return;
+        }
+    }
+
+    /* if we could not find it */
+    i = emap->src_parallel_region_last_index;
+    i++;
+    if (i == MAX_SRC_PARALLELS) {
+        sprintf(stderr, "Max number of parallel regions (%d) allowed in the source code reached\n", MAX_SRC_PARALLELS);
+    } else {
+        emap->src_parallel_region_last_index = i;
+        emap->src_parallel_region_recent = i;
+        emap->src_parallel_regions[i].codeptr_ra = codeptr_ra;
+        emap->src_parallel_regions[i].most_recent = record;
+        record->next = NULL;
+
+    }
 }
 
 void list_past_parallels(thread_event_map_t * emap) {
@@ -94,19 +126,36 @@ void list_past_parallels(thread_event_map_t * emap) {
     };
 }
 
-void list_cached_past_parallels(thread_event_map_t * emap) {
-    int i = emap->oldest_parallel;
-    printf("Past Parallels:\n");
+void print_src_parallel(ompt_parallel_src_t * srcp) {
+    printf("----------------------------- Parallel at %p: -----------------------------------------\n", srcp->codeptr_ra);
     printf("ID(Event ID)\t\tFrame\t\tAddress\t\tTime\t\t#threads\n");
-    while(1) {
-        int record_id = emap->past_parallell_regions[i];
-        ompt_trace_record_t * record = &emap->records[record_id];
-        printf("%llu(%d)\t%p\t%p\t%.2f\t%d\n", record->ompt_id, record_id, record->user_frame,
+    printf("--------------------------------------------------------------------------------------------\n");
+    ompt_trace_record_t * record = srcp->most_recent;
+    while (record != NULL) {
+        printf("%llu(%d)\t%p\t%p\t%.2f\t%d\n", record->ompt_id, record->record_id, record->user_frame,
                record->codeptr_ra, record->time_stamp, record->team_size);
-        if (i == emap->youngest_parallel) break;
-        i++;
-        if (i == MAX_HIST_PARALLEL) i = 0;
-    };
+        record = record->next;
+    }
+    printf("--------------------------------------------------------------------------------------------\n");
+}
+
+void list_past_src_parallels(thread_event_map_t * emap) {
+    int i;
+    printf("==============================================================================================\n");
+    printf("========================= Past Parallels (from the most recent):==============================\n");
+    printf("--------------------------------------------------------------------------------------------\n");
+    if (emap->src_parallel_region_last_index < 0) return;
+
+    /* search forward from the most recent one */
+    for (i=emap->src_parallel_region_recent; i<=emap->src_parallel_region_last_index; i++) {
+        ompt_parallel_src_t * srcp = &emap->src_parallel_regions[i];
+        print_src_parallel(srcp);
+    }
+    /* search from 0 to most recent one */
+    for (i=0; i<emap->src_parallel_region_recent; i++) {
+        ompt_parallel_src_t * srcp = &emap->src_parallel_regions[i];
+        print_src_parallel(srcp);
+    }
 }
 
 /** fini thread event map including deallocate memory for trace records

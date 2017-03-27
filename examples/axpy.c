@@ -105,16 +105,14 @@ int main(int argc, char *argv[]) {
 void axpy_omp_parallel_for(int N, REAL *Y, REAL *X, REAL a) {
     int i;
     #pragma omp parallel shared(N, X, Y, a) private(i)
+    {
+    #pragma omp single
+	printf("num of threads: %d\n", omp_get_num_threads());
     #pragma omp for
     for (i = 0; i < N; ++i){
         Y[i] += a * X[i];
 	}
-    
-    #pragma omp parallel shared(N, X, Y, a) private(i)
-    #pragma omp for
-    for (i = 0; i < N; ++i){
-        Y[i] += a * X[i];
-	}
+    }
 }
 
 

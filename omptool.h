@@ -4,6 +4,8 @@
 #define MAX_NUM_THREADS 512
 #define MAX_NEST_DEPTH 16
 #define MAX_HIST_PARALLEL 16
+/* the max number of parallel regions in the original source code */
+#define MAX_SRC_PARALLELS 32
 #define MAX_NUM_PACKAGES 16
 
 /*
@@ -58,12 +60,14 @@ long long papi_counter_values[NUM_PAPI_EVENTS];
 typedef struct ompt_trace_record {
     ompt_id_t ompt_id;
     ompt_id_t thread_id_inteam;
-    int team_size;
+    int user_team_size; /* user setting of team size */
+    int team_size;      /* the actual team size setting by the runtime/ompt */
     int event_id;
     short event_id_additional; /* additional info about the event, e.g. begin event of a callback_idle */
     ompt_id_t graph_id;
     void *user_frame;
     const void *codeptr_ra;
+    struct ompt_trace_record *next; /* the link of the link list for all the records of the same lexical parallel region in src */
     ompt_id_t target_id;
 
     int record_id;
@@ -79,6 +83,12 @@ typedef struct ompt_trace_record {
 #endif
 } ompt_trace_record_t;
 
+/* Used as array elements for storing the lexical parallel regions encountered in the runtime */
+typedef struct ompt_parallel_src {
+    const void *codeptr_ra;
+    ompt_trace_record_t * most_recent;
+} ompt_parallel_src_t;
+
 /* each thread has an object of thread_event_map that stores all the tracing record along 
  * during the execution
  */
@@ -91,9 +101,9 @@ typedef struct thread_event_map {
      */
     int region_begin_stack[MAX_NEST_DEPTH];
     int innermost_region_begin; /* the index for the begin event of the innermost region, the top of the stack */
-    int past_parallell_regions[MAX_HIST_PARALLEL]; /* the queue for storing the past MAX_HIS_PARALLEL parallel regions in time order */
-    int oldest_parallel;
-    int youngest_parallel;
+    ompt_parallel_src_t src_parallel_regions[MAX_SRC_PARALLELS];
+    int src_parallel_region_last_index; /* the last src_parallel in the src_parallel_regions array */
+    int src_parallel_region_recent; /* the most-recently used src_parallel in the src_parallel_regions array */
 
     ompt_trace_record_t *records;
 } thread_event_map_t;
@@ -122,9 +132,9 @@ extern void fini_thread_event_map(int thread_id);
  */
 extern void mark_region_begin(int thread_id);
 extern void mark_region_end(int thread_id);
-extern void enqueu_parallel(thread_event_map_t * emap, int rid);
 extern void list_past_parallels(thread_event_map_t * emap);
-extern void list_cached_past_parallels(thread_event_map_t * emap);
+extern void list_past_src_parallels(thread_event_map_t * emap);
+extern void add_parallel_src(thread_event_map_t * emap, const void * codeptr_ra, ompt_trace_record_t * record);
 extern ompt_trace_record_t *add_trace_record(int thread_id, int event_id, ompt_frame_t *frame, const void *codeptr_ra);
 extern void link_records(ompt_trace_record_t * begin, ompt_trace_record_t * end);
 extern void set_trace_parallel_id(int thread_id, int counter, ompt_id_t parallel_id);

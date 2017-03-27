@@ -188,7 +188,7 @@ on_ompt_callback_idle(
         }
     }
 }
-
+int num_threads = 1;
 static void
 on_ompt_callback_parallel_begin(
         ompt_data_t *parent_task_data,
@@ -202,7 +202,7 @@ on_ompt_callback_parallel_begin(
     int thread_id = rex_get_global_thread_num();
     thread_event_map_t * emap = &event_maps[thread_id];
     ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_parallel_begin, NULL, codeptr_ra);
-    record->team_size = requested_team_size;
+    record->user_team_size = requested_team_size;
     record->ompt_id = parallel_data->value;
     //record->user_frame = OMPT_GET_FRAME_ADDRESS(0); /* the frame of the function who calls __kmpc_fork_call */
     //record->codeptr_ra = OMPT_GET_RETURN_ADDRESS(1); /* the address of the function who calls __kmpc_fork_call */
@@ -211,14 +211,18 @@ on_ompt_callback_parallel_begin(
 
     record->time_stamp = read_timer();
 
+    record->team_size = record->user_team_size;
+    if (record->team_size != record->user_team_size) {
+        omp_set_num_threads(record->team_size);
+    }
 #ifdef PE_MEASUREMENT_SUPPORT
     add_pe_measurement(record);
 #endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     add_papi_measurement_start_counters(record);
 #endif
-    enqueu_parallel(emap, emap->counter);
     mark_region_begin(thread_id);
+    add_parallel_src(emap, codeptr_ra, record);
     //printf("Thread: %d parallel begin: FRAME_ADDRESS: %p, LOCATION: %p, exit_runtime_frame: %p, reenter_runtime_frame: %p, codeptr_ra: %p\n",
     //thread_id, record->user_frame, record->codeptr_ra, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, codeptr_ra);
     //print_ids(4);
@@ -263,8 +267,7 @@ on_ompt_callback_parallel_end(
     printf("\n");
 #endif
     mark_region_end(thread_id);
-    printf("Thread: %d parallel end\n", thread_id);
-    list_past_parallels(emap);
+//    printf("Thread: %d parallel end\n", thread_id);
 /*
   if(inner_counter == iteration_ompt)
   {
@@ -278,6 +281,9 @@ on_ompt_callback_parallel_end(
   }
   else inner_counter++;
 */
+    if (begin_record->team_size != begin_record->user_team_size) {
+        omp_set_num_threads(begin_record->user_team_size); /* restore back to the original team size users want */
+    }
 }
 
 static void
@@ -326,9 +332,9 @@ int ompt_initialize(
     ompt_get_thread_data = (ompt_get_thread_data_t) lookup("ompt_get_thread_data");
     ompt_get_parallel_info = (ompt_get_parallel_info_t) lookup("ompt_get_parallel_info");
     ompt_get_unique_id = (ompt_get_unique_id_t) lookup("ompt_get_unique_id");
-    register_callback(ompt_callback_idle);
+//    register_callback(ompt_callback_idle);
 //    register_callback(ompt_callback_idle_spin);
-    register_callback(ompt_callback_idle_suspend);
+//    register_callback(ompt_callback_idle_suspend);
     register_callback(ompt_callback_parallel_begin);
     register_callback(ompt_callback_parallel_end);
     register_callback(ompt_callback_thread_begin);
@@ -365,6 +371,10 @@ int ompt_initialize(
     init_pe_units();
     pe_measure(pe_epoch_begin.package, pe_epoch_begin.pp0, pe_epoch_begin.pp1, pe_epoch_begin.dram);
 #endif
+
+
+    abort();
+
     return 1; //success
 }
 
@@ -388,6 +398,18 @@ void ompt_finalize(ompt_fns_t *fns) {
             package_energy, pp1_energy, pp0_energy, dram_energy);
 #endif
     printf("\n");
+
+    void* callstack[128];
+    int i, frames = backtrace(callstack, 128);
+    char** strs = backtrace_symbols(callstack, frames);
+    for (i = 0; i < frames; ++i) {
+        printf("%s\n", strs[i]);
+    }
+
+//    int thread_id = rex_get_global_thread_num();
+    thread_event_map_t *emap = get_event_map(0);
+    list_past_parallels(emap);
+    list_past_src_parallels(emap);
 }
 
 ompt_fns_t *ompt_start_tool(
