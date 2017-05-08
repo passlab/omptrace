@@ -227,7 +227,7 @@ on_ompt_callback_parallel_begin(
     //thread_id, record->user_frame, record->codeptr_ra, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, codeptr_ra);
     //print_ids(4);
 }
-
+#define ONLINE_TRACING_PRINT 1
 static void
 on_ompt_callback_parallel_end(
         ompt_data_t *parallel_data,
@@ -372,9 +372,6 @@ int ompt_initialize(
     pe_measure(pe_epoch_begin.package, pe_epoch_begin.pp0, pe_epoch_begin.pp1, pe_epoch_begin.dram);
 #endif
 
-
-    abort();
-
     return 1; //success
 }
 
@@ -399,12 +396,14 @@ void ompt_finalize(ompt_fns_t *fns) {
 #endif
     printf("\n");
 
+    /*
     void* callstack[128];
     int i, frames = backtrace(callstack, 128);
     char** strs = backtrace_symbols(callstack, frames);
     for (i = 0; i < frames; ++i) {
         printf("%s\n", strs[i]);
     }
+     */
 
 //    int thread_id = rex_get_global_thread_num();
     thread_event_map_t *emap = get_event_map(0);

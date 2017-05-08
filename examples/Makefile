@@ -11,10 +11,10 @@ OMP_LIB_PATH=${OMP_STANDALONE_INSTALL}/lib
 PAPI_INSTALL=/home/yan/tools/papi-5.5.1-install
 
 # on yan's vm setup
-OMP_REX_INCLUDE=/home/yan/machome/rex/llvm-openmp/build/runtime/src
-# /home/yan/tools/llvm-openmp/BUILD/runtime/src
-OMP_LIB_PATH=/home/yan/machome/rex/llvm-openmp/build/runtime/src
-# /home/yan/tools/llvm-openmp/BUILD/runtime/src
+#OMP_REX_INCLUDE=/home/yan/machome/rex/llvm-openmp/build/runtime/src
+OMP_REX_INCLUDE=/home/yan/tools/llvm-openmp/BUILD/runtime/src
+# OMP_LIB_PATH=/home/yan/machome/rex/llvm-openmp/build/runtime/src
+OMP_LIB_PATH=/home/yan/tools/llvm-openmp/BUILD/runtime/src
 
 FEATURES=-DPE_OPTIMIZATION_SUPPORT=1 -DPE_OPTIMIZATION_DVFS=1 -DPE_MEASUREMENT_SUPPORT=1 -DPAPI_MEASUREMENT_SUPPORT=1
 FEATURES=-DPAPI_MEASUREMENT_SUPPORT=1

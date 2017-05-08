@@ -12,7 +12,10 @@
 #define TRACEPOINT_CREATE_PROBES
 #define TRACEPOINT_DEFINE
 #include "lttng_tracepoint.h"
-extern int __kmp_get_global_thread_id(); 
+extern int __kmpc_global_thread_num(void *);
+
+#define get_global_thread_num() __kmpc_global_thread_num(NULL)
+#define get_global_num_threads() __kmpc_global_num_threads(NULL)
 
 static const char* ompt_thread_type_t_values[] = {
   NULL,
@@ -228,18 +231,22 @@ on_ompt_callback_sync_region(
   ompt_data_t *task_data,
   const void *codeptr_ra)
 {
+  int thread_id = get_global_thread_num();
   switch(endpoint)
   {
     case ompt_scope_begin:
       switch(kind)
       {
         case ompt_sync_region_barrier:
-          printf("%" PRIu64 ": ompt_event_barrier_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
-          print_ids(0);
+          tracepoint(lttng_visuomp, barrier_begin, thread_id, parallel_data, task_data, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_barrier_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
+          //print_ids(0);
           break;
         case ompt_sync_region_taskwait:
+          tracepoint(lttng_visuomp, taskwait_begin, thread_id, parallel_data, task_data, codeptr_ra);
           break;
         case ompt_sync_region_taskgroup:
+          tracepoint(lttng_visuomp, taskgroup_begin, thread_id, parallel_data, task_data, codeptr_ra);
           break;
       }
       break;
@@ -247,11 +254,14 @@ on_ompt_callback_sync_region(
       switch(kind)
       {
         case ompt_sync_region_barrier:
-          printf("%" PRIu64 ": ompt_event_barrier_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, codeptr_ra);
+          tracepoint(lttng_visuomp, barrier_end, thread_id, parallel_data, task_data, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_barrier_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, codeptr_ra);
           break;
         case ompt_sync_region_taskwait:
+          tracepoint(lttng_visuomp, taskwait_end, thread_id, parallel_data, task_data, codeptr_ra);
           break;
         case ompt_sync_region_taskgroup:
+          tracepoint(lttng_visuomp, taskgroup_end, thread_id, parallel_data, task_data, codeptr_ra);
           break;
       }
       break;
@@ -266,17 +276,21 @@ on_ompt_callback_sync_region_wait(
   ompt_data_t *task_data,
   const void *codeptr_ra)
 {
+  int thread_id = get_global_thread_num();
   switch(endpoint)
   {
     case ompt_scope_begin:
       switch(kind)
       {
         case ompt_sync_region_barrier:
-          printf("%" PRIu64 ": ompt_event_wait_barrier_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
+          tracepoint(lttng_visuomp, barrier_wait_begin, thread_id, parallel_data, task_data, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_wait_barrier_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
           break;
         case ompt_sync_region_taskwait:
+          tracepoint(lttng_visuomp, taskwait_wait_begin, thread_id, parallel_data, task_data, codeptr_ra);
           break;
         case ompt_sync_region_taskgroup:
+          tracepoint(lttng_visuomp, taskgroup_wait_begin, thread_id, parallel_data, task_data, codeptr_ra);
           break;
       }
       break;
@@ -284,11 +298,14 @@ on_ompt_callback_sync_region_wait(
       switch(kind)
       {
         case ompt_sync_region_barrier:
-          printf("%" PRIu64 ": ompt_event_wait_barrier_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, codeptr_ra);
+          tracepoint(lttng_visuomp, barrier_wait_end, thread_id, parallel_data, task_data, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_wait_barrier_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, codeptr_ra);
           break;
         case ompt_sync_region_taskwait:
+          tracepoint(lttng_visuomp, taskwait_wait_end, thread_id, parallel_data, task_data, codeptr_ra);
           break;
         case ompt_sync_region_taskgroup:
+          tracepoint(lttng_visuomp, taskgroup_wait_end, thread_id, parallel_data, task_data, codeptr_ra);
           break;
       }
       break;
@@ -342,17 +359,17 @@ static void
 on_ompt_callback_idle(
   ompt_scope_endpoint_t endpoint)
 {
-  int thread_id = __kmp_get_global_thread_id();
+  int thread_id = get_global_thread_num();
   switch(endpoint)
   {
     case ompt_scope_begin:
-    tracepoint(lttng_visuomp, thread_idle_begin, thread_id, ompt_get_thread_data());
-      printf("%" PRIu64 ": ompt_event_idle_begin:\n", ompt_get_thread_data()->value);
+      tracepoint(lttng_visuomp, thread_idle_begin, thread_id, ompt_get_thread_data());
+      //printf("%" PRIu64 ": ompt_event_idle_begin:\n", ompt_get_thread_data()->value);
       //printf("%" PRIu64 ": ompt_event_idle_begin: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data.value);
       break;
     case ompt_scope_end:
-    tracepoint(lttng_visuomp, thread_idle_end, thread_id, ompt_get_thread_data());
-      printf("%" PRIu64 ": ompt_event_idle_end:\n", ompt_get_thread_data()->value);
+      tracepoint(lttng_visuomp, thread_idle_end, thread_id, ompt_get_thread_data());
+      //printf("%" PRIu64 ": ompt_event_idle_end:\n", ompt_get_thread_data()->value);
       //printf("%" PRIu64 ": ompt_event_idle_end: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data.value);
       break;
   }
@@ -366,19 +383,17 @@ on_ompt_callback_implicit_task(
     unsigned int team_size,
     unsigned int thread_num)
 {
-  int thread_id = __kmp_get_global_thread_id();
+  int thread_id = get_global_thread_num();
   switch(endpoint)
   {
     case ompt_scope_begin:
       task_data->value = ompt_get_unique_id();
       tracepoint(lttng_visuomp, implicit_task_begin, thread_id, parallel_data, task_data, team_size, thread_num);
-
-      printf("%" PRIu64 ": ompt_event_implicit_task_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", team_size=%" PRIu32 ", thread_num=%" PRIu32 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, team_size, thread_num);
+      //printf("%" PRIu64 ": ompt_event_implicit_task_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", team_size=%" PRIu32 ", thread_num=%" PRIu32 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, team_size, thread_num);
       break;
     case ompt_scope_end:
       tracepoint(lttng_visuomp, implicit_task_end, thread_id, parallel_data, task_data, team_size, thread_num);
-
-      printf("%" PRIu64 ": ompt_event_implicit_task_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", team_size=%" PRIu32 ", thread_num=%" PRIu32 "\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, team_size, thread_num);
+      //printf("%" PRIu64 ": ompt_event_implicit_task_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", team_size=%" PRIu32 ", thread_num=%" PRIu32 "\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, team_size, thread_num);
       break;
   }
 }
@@ -432,30 +447,38 @@ on_ompt_callback_work(
   uint64_t count,
   const void *codeptr_ra)
 {
+  int thread_id = get_global_thread_num();
   switch(endpoint)
   {
     case ompt_scope_begin:
       switch(wstype)
       {
         case ompt_work_loop:
-          printf("%" PRIu64 ": ompt_event_loop_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+          tracepoint(lttng_visuomp, work_loop_begin, thread_id, parallel_data, task_data, count, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_loop_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
           break;
         case ompt_work_sections:
+          tracepoint(lttng_visuomp, work_sections_begin, thread_id, parallel_data, task_data, count, codeptr_ra);
           //impl
           break;
         case ompt_work_single_executor:
-          printf("%" PRIu64 ": ompt_event_single_in_block_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+          tracepoint(lttng_visuomp, work_single_executor_begin, thread_id, parallel_data, task_data, count, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_single_in_block_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
           break;
         case ompt_work_single_other:
-          printf("%" PRIu64 ": ompt_event_single_others_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+          tracepoint(lttng_visuomp, work_single_other_begin, thread_id, parallel_data, task_data, count, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_single_others_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
           break;
         case ompt_work_workshare:
+          tracepoint(lttng_visuomp, work_workshare_begin, thread_id, parallel_data, task_data, count, codeptr_ra);
           //impl
           break;
         case ompt_work_distribute:
+          tracepoint(lttng_visuomp, work_distribute_begin, thread_id, parallel_data, task_data, count, codeptr_ra);
           //impl
           break;
         case ompt_work_taskloop:
+          tracepoint(lttng_visuomp, work_taskloop_begin, thread_id, parallel_data, task_data, count, codeptr_ra);
           //impl
           break;
       }
@@ -464,24 +487,31 @@ on_ompt_callback_work(
       switch(wstype)
       {
         case ompt_work_loop:
-          printf("%" PRIu64 ": ompt_event_loop_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+          tracepoint(lttng_visuomp, work_loop_end, thread_id, parallel_data, task_data, count, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_loop_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
           break;
         case ompt_work_sections:
+          tracepoint(lttng_visuomp, work_sections_end, thread_id, parallel_data, task_data, count, codeptr_ra);
           //impl
           break;
         case ompt_work_single_executor:
-          printf("%" PRIu64 ": ompt_event_single_in_block_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+          tracepoint(lttng_visuomp, work_single_executor_end, thread_id, parallel_data, task_data, count, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_single_in_block_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
           break;
         case ompt_work_single_other:
-          printf("%" PRIu64 ": ompt_event_single_others_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+          tracepoint(lttng_visuomp, work_single_other_end, thread_id, parallel_data, task_data, count, codeptr_ra);
+          //printf("%" PRIu64 ": ompt_event_single_others_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
           break;
         case ompt_work_workshare:
+          tracepoint(lttng_visuomp, work_workshare_end, thread_id, parallel_data, task_data, count, codeptr_ra);
           //impl
           break;
         case ompt_work_distribute:
+          tracepoint(lttng_visuomp, work_distribute_end, thread_id, parallel_data, task_data, count, codeptr_ra);
           //impl
           break;
         case ompt_work_taskloop:
+          tracepoint(lttng_visuomp, work_taskloop_end, thread_id, parallel_data, task_data, count, codeptr_ra);
           //impl
           break;
       }
@@ -496,13 +526,16 @@ on_ompt_callback_master(
   ompt_task_data_t *task_data,
   const void *codeptr_ra)
 {
+  int thread_id = get_global_thread_num();
   switch(endpoint)
   {
     case ompt_scope_begin:
-      printf("%" PRIu64 ": ompt_event_master_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
+      tracepoint(lttng_visuomp, master_begin, thread_id, parallel_data, task_data, codeptr_ra);
+      //printf("%" PRIu64 ": ompt_event_master_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
       break;
     case ompt_scope_end:
-      printf("%" PRIu64 ": ompt_event_master_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
+      tracepoint(lttng_visuomp, master_end, thread_id, parallel_data, task_data, codeptr_ra);
+      //printf("%" PRIu64 ": ompt_event_master_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
       break;
   }
 }
@@ -518,9 +551,9 @@ on_ompt_callback_parallel_begin(
   const void *codeptr_ra)
 {
   parallel_data->value = ompt_get_unique_id();
-  int thread_id = __kmp_get_global_thread_id();
+  int thread_id = get_global_thread_num();
   tracepoint(lttng_visuomp, parallel_begin, thread_id, parent_task_frame, parallel_data, requested_team_size, codeptr_ra);
-  printf("%" PRIu64 ": ompt_event_parallel_begin: parent_task_id=%" PRIu64 ", parent_task_frame.exit=%p, parent_task_frame.reenter=%p, parallel_id=%" PRIu64 ", requested_team_size=%" PRIu32 ", parallel_function=%p, invoker=%d\n", ompt_get_thread_data()->value, parent_task_data->value, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, parallel_data->value, requested_team_size, codeptr_ra, invoker);
+  //printf("%" PRIu64 ": ompt_event_parallel_begin: parent_task_id=%" PRIu64 ", parent_task_frame.exit=%p, parent_task_frame.reenter=%p, parallel_id=%" PRIu64 ", requested_team_size=%" PRIu32 ", parallel_function=%p, invoker=%d\n", ompt_get_thread_data()->value, parent_task_data->value, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, parallel_data->value, requested_team_size, codeptr_ra, invoker);
 }
 
 static void
@@ -530,9 +563,9 @@ on_ompt_callback_parallel_end(
   ompt_invoker_t invoker,
   const void *codeptr_ra)
 {
-  int thread_id = __kmp_get_global_thread_id();
+  int thread_id = get_global_thread_num();
   tracepoint(lttng_visuomp, parallel_end, thread_id, parallel_data, task_data, codeptr_ra);
-  printf("%" PRIu64 ": ompt_event_parallel_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", invoker=%d, codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, invoker, codeptr_ra);
+  //printf("%" PRIu64 ": ompt_event_parallel_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", invoker=%d, codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, invoker, codeptr_ra);
 }
 
 static void
@@ -583,19 +616,19 @@ on_ompt_callback_thread_begin(
   ompt_thread_type_t thread_type,
   ompt_data_t *thread_data)
 {
-  int thread_id = __kmp_get_global_thread_id();
+  int thread_id = get_global_thread_num();
   thread_data->value = ompt_get_unique_id();
   tracepoint(lttng_visuomp, thread_begin, thread_id, thread_data); 
-  printf("%" PRIu64 ": ompt_event_thread_begin: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
+  //printf("%" PRIu64 ": ompt_event_thread_begin: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
 }
 
 static void
 on_ompt_callback_thread_end(
   ompt_data_t *thread_data)
 {
-  int thread_id = __kmp_get_global_thread_id();
+  int thread_id = get_global_thread_num();
   tracepoint(lttng_visuomp, thread_end, thread_id, thread_data); 
-  printf("%" PRIu64 ": ompt_event_thread_end: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data->value);
+  //printf("%" PRIu64 ": ompt_event_thread_end: thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, thread_data->value);
   //printf("%" PRIu64 ": ompt_event_thread_end: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
 }
 
@@ -665,7 +698,7 @@ int ompt_initialize(
 
 void ompt_finalize(ompt_fns_t* fns)
 {
-  printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
+  //printf("%d: ompt_event_runtime_shutdown\n", omp_get_thread_num());
 }
 
 ompt_fns_t* ompt_start_tool(

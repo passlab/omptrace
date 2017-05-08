@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
     memcpy(Y_parallel, Y_base, N * sizeof(REAL));
 
     int i;
-    int num_runs = 4;
+    int num_runs = 10;
   
     double elapsed_omp_parallel_for = read_timer();
     for (i=0; i<num_runs; i++) {
@@ -107,9 +107,10 @@ void axpy_omp_parallel_for(int N, REAL *Y, REAL *X, REAL a) {
     #pragma omp parallel shared(N, X, Y, a) private(i)
     {
     #pragma omp single
-	printf("num of threads: %d\n", omp_get_num_threads());
+	printf("num_threads: %d\n", omp_get_num_threads());
+ 
     #pragma omp for
-    for (i = 0; i < N; ++i){
+    for (i = 0; i < N; ++i) {
         Y[i] += a * X[i];
 	}
     }
