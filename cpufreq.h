@@ -20,6 +20,8 @@
 #ifndef __CPUPOWER_CPUFREQ_H__
 #define __CPUPOWER_CPUFREQ_H__
 
+#include <stddef.h>
+
 #define PATH_TO_CPU "/sys/devices/system/cpu/"
 #define MAX_LINE_LEN 4096
 #define SYSFS_PATH_MAX 255

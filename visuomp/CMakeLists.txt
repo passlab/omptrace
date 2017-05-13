@@ -26,5 +26,5 @@ set(SOURCE_FILES
 add_library(visuomp SHARED ${SOURCE_FILES})
 include_directories(. ${OMP_LIB_PATH})
 link_directories(${OMP_LIB_PATH} ${PAPI_INSTALL}/lib)
-target_link_libraries(visuomp unwind dl lttng-ust ${OMP_LIB_PATH}/libomp.so m)
+target_link_libraries(visuomp dl lttng-ust ${OMP_LIB_PATH}/libomp.so m)
 

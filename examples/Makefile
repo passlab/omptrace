@@ -5,21 +5,19 @@
 # Use -DPE_MEASUREMENT_SUPPORT=1 as compiler flag to turn on/off power/energy msr-based measurement, see ompt_callback.c
 
 # fornax
-OMP_STANDALONE_INSTALL=/home/yan/tools/llvm-openmp-ompt-rex-install
-OMP_REX_INCLUDE=${OMP_STANDALONE_INSTALL}/include
-OMP_LIB_PATH=${OMP_STANDALONE_INSTALL}/lib
+OMP_STANDALONE_INSTALL=/home/yan/tools/llvm-openmp/BUILD/runtime/src
+OMP_LIB_PATH=${OMP_STANDALONE_INSTALL}
+OMP_INCLUDE=${OMP_STANDALONE_INSTALL}
 PAPI_INSTALL=/home/yan/tools/papi-5.5.1-install
 
 # on yan's vm setup
-#OMP_REX_INCLUDE=/home/yan/machome/rex/llvm-openmp/build/runtime/src
-OMP_REX_INCLUDE=/home/yan/tools/llvm-openmp/BUILD/runtime/src
 # OMP_LIB_PATH=/home/yan/machome/rex/llvm-openmp/build/runtime/src
-OMP_LIB_PATH=/home/yan/tools/llvm-openmp/BUILD/runtime/src
+#OMP_LIB_PATH=/home/yan/tools/llvm-openmp/BUILD/runtime/src
 
 FEATURES=-DPE_OPTIMIZATION_SUPPORT=1 -DPE_OPTIMIZATION_DVFS=1 -DPE_MEASUREMENT_SUPPORT=1 -DPAPI_MEASUREMENT_SUPPORT=1
 FEATURES=-DPAPI_MEASUREMENT_SUPPORT=1
 
-CFLAGS=${FEATURES} -L${OMP_LIB_PATH} -L${PAPI_INSTALL}/lib -I${PAPI_INSTALL}/include -I${OMP_REX_INCLUDE} -lunwind -lomp -lm -lpapi -g
+CFLAGS=${FEATURES} -I${OMP_INCLUDE} -L${OMP_LIB_PATH} -L${PAPI_INSTALL}/lib -I${PAPI_INSTALL}/include -lomp -lm -lpapi -g
 LIB_SRC=../cpufreq.c ../pe_measurement.c ../omptool.c ../ompt_callback.c
 
 axpyclang: axpy.c ${LIB_SRC}

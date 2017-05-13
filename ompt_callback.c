@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <inttypes.h>
 #include <execinfo.h>
-#include <sys/timeb.h>
 #include <sched.h>
 
 #ifdef OMPT_USE_LIBUNWIND
@@ -11,131 +10,55 @@
 
 #include <omp.h>
 #include <ompt.h>
-#include <rex.h>
 #include "omptool.h"
 
-static const char *ompt_thread_type_t_values[] = {
-        NULL,
-        "ompt_thread_initial",
-        "ompt_thread_worker",
-        "ompt_thread_other"
-};
-
-static const char *ompt_task_type_t_values[] = {
-        NULL,
-        "ompt_task_initial",
-        "ompt_task_implicit",
-        "ompt_task_explicit",
-        "ompt_task_target"
-};
-
+static ompt_set_callback_t ompt_set_callback;
 static ompt_get_task_info_t ompt_get_task_info;
 static ompt_get_thread_data_t ompt_get_thread_data;
 static ompt_get_parallel_info_t ompt_get_parallel_info;
 static ompt_get_unique_id_t ompt_get_unique_id;
-
-static double read_timer() {
-    struct timeb tm;
-    ftime(&tm);
-    return (double) tm.time + (double) tm.millitm / 1000.0;
-}
-
-/* read timer in ms */
-static double read_timer_ms() {
-    struct timeb tm;
-    ftime(&tm);
-    return (double) tm.time * 1000.0 + (double) tm.millitm;
-}
-
-static void print_ids(int level) {
-    ompt_frame_t *frame;
-    ompt_data_t *parallel_data;
-    ompt_data_t *task_data;
-    int exists_parallel = ompt_get_parallel_info(level, &parallel_data, NULL);
-    int exists_task = ompt_get_task_info(level, NULL, &task_data, &frame, NULL, NULL);
-    if (frame)
-        printf("%" PRIu64 ": level %d: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", exit_frame=%p, reenter_frame=%p\n",
-               ompt_get_thread_data()->value, level, exists_parallel ? parallel_data->value : 0,
-               exists_task ? task_data->value : 0, frame->exit_runtime_frame, frame->reenter_runtime_frame);
-    else
-        printf("%" PRIu64 ": level %d: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", frame=%p\n",
-               ompt_get_thread_data()->value, level, exists_parallel ? parallel_data->value : 0,
-               exists_task ? task_data->value : 0, frame);
-}
-
-#ifdef OMPT_USE_LIBUNWIND
-#define print_frame(level)\
-do {\
-  unw_cursor_t cursor;\
-  unw_context_t uc;\
-  unw_word_t fp;\
-  unw_getcontext(&uc);\
-  unw_init_local(&cursor, &uc);\
-  int tmp_level = level;\
-  unw_get_reg(&cursor, UNW_REG_SP, &fp);\
-  printf("callback %p\n", (void*)fp);\
-  while (tmp_level > 0 && unw_step(&cursor) > 0)\
-  {\
-    unw_get_reg(&cursor, UNW_REG_SP, &fp);\
-    printf("callback %p\n", (void*)fp);\
-    tmp_level--;\
-  }\
-  if(tmp_level == 0)\
-    printf("%" PRIu64 ": __builtin_frame_address(%d)=%p\n", ompt_get_thread_data()->value, level, (void*)fp);\
-  else\
-    printf("%" PRIu64 ": __builtin_frame_address(%d)=%p\n", ompt_get_thread_data()->value, level, NULL);\
-} while(0)
-
-#else
-#define print_frame(level)\
-do {\
-  printf("%" PRIu64 ": __builtin_frame_address(%d)=%p\n", ompt_get_thread_data()->value, level, __builtin_frame_address(level));\
-} while(0)
-#endif
-
-static void print_current_address() {
-    int real_level = 2;
-    void *array[real_level];
-    size_t size;
-    void *address;
-
-    size = backtrace(array, real_level);
-    if (size == real_level)
-        address = array[real_level - 1] - 4;
-    else
-        address = NULL;
-    printf("%" PRIu64 ": current_address=%p\n", ompt_get_thread_data()->value, address);
-}
+static ompt_get_num_places_t ompt_get_num_places;
+static ompt_get_place_proc_ids_t ompt_get_place_proc_ids;
+static ompt_get_place_num_t ompt_get_place_num;
+static ompt_get_partition_place_nums_t ompt_get_partition_place_nums;
+static ompt_get_proc_id_t ompt_get_proc_id;
 
 static void
-on_ompt_callback_idle_spin(
-        void * data) {
-    int thread_id = rex_get_global_thread_num();
+on_ompt_callback_idle_spin(void * data) {
+    const void *codeptr_ra  =  &on_ompt_callback_idle_spin;
+    const void *frame  =  NULL; //OMPT_GET_FRAME_ADDRESS(0);
+    int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
-    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle_spin, NULL, NULL);
-    record->time_stamp = read_timer();
+#ifdef OMPT_TRACING_SUPPORT
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle_spin, frame, codeptr_ra);
+#endif
   //  printf("Thread: %d idle spin\n", thread_id);
 }
 
 static void
-on_ompt_callback_idle_suspend(
-        void * data) {
-    int thread_id = rex_get_global_thread_num();
+on_ompt_callback_idle_suspend(void * data) {
+    const void *codeptr_ra = &on_ompt_callback_idle_suspend;
+    const void *frame = NULL; //OMPT_GET_FRAME_ADDRESS(0);
+    int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
-    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle_spin, NULL, NULL);
-    record->time_stamp = read_timer();
+#ifdef OMPT_TRACING_SUPPORT
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle_suspend, frame, codeptr_ra);
+#endif
 //    printf("Thread: %d idle suspend\n", thread_id);
 }
 
 
-static void
-on_ompt_callback_idle(
+static void on_ompt_callback_idle(
         ompt_scope_endpoint_t endpoint) {
-    int thread_id = rex_get_global_thread_num();
+    const void *codeptr_ra = &on_ompt_callback_idle;
+    const void *frame = NULL; //OMPT_GET_FRAME_ADDRESS(0);
+    int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
-    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle, NULL, NULL);
+    ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, codeptr_ra);
+#ifdef OMPT_TRACING_SUPPORT
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_idle, frame, codeptr_ra);
     record->event_id_additional = endpoint;
-    record->time_stamp = read_timer();
+#endif
 
     switch (endpoint) {
         case ompt_scope_begin: {
@@ -161,7 +84,10 @@ on_ompt_callback_idle(
                 /*if both kernel cpu id are at the idle state, set up both as low frequency */
             }
 #endif
-            mark_region_begin(thread_id);
+#ifdef OMPT_TRACING_SUPPORT
+            add_record_lexgion(lgp, record);
+#endif
+            push_lexgion(emap, lgp);
    //         printf("Thread: %d idle begin\n", thread_id);
    //         print_frame(0);
    //         printf("frame  address: %p\n", OMPT_GET_FRAME_ADDRESS(0));
@@ -179,16 +105,18 @@ on_ompt_callback_idle(
                 record->frequency = pe_adjust_freq(id, CORE_HIGH_FREQ);
             }
 #endif
-            ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
+#ifdef OMPT_TRACING_SUPPORT
+            ompt_trace_record_t *begin_record = get_last_lexgion_record(emap);
             /* link two event together */
             link_records(begin_record, record);
-            mark_region_end(thread_id);
+#endif
+            pop_lexgion(emap);
             //printf("Thread: %d idle end\n", thread_id);
             break;
         }
     }
 }
-int num_threads = 1;
+
 static void
 on_ompt_callback_parallel_begin(
         ompt_data_t *parent_task_data,
@@ -199,34 +127,76 @@ on_ompt_callback_parallel_begin(
         ompt_invoker_t invoker,
         const void *codeptr_ra) {
     parallel_data->value = ompt_get_unique_id();
-    int thread_id = rex_get_global_thread_num();
+//    const void *codeptr_ra = OMPT_GET_RETURN_ADDRESS(0); /* address of the function who calls __kmpc_fork_call */
+//    const void *frame = parent_task_frame->reenter_runtime_frame;
+    //const void *frame = OMPT_GET_FRAME_ADDRESS(0); /* the frame of the function who calls __kmpc_fork_call */
+    int thread_id = get_global_thread_num();
     thread_event_map_t * emap = &event_maps[thread_id];
-    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_parallel_begin, NULL, codeptr_ra);
-    record->user_team_size = requested_team_size;
-    record->ompt_id = parallel_data->value;
-    //record->user_frame = OMPT_GET_FRAME_ADDRESS(0); /* the frame of the function who calls __kmpc_fork_call */
-    //record->codeptr_ra = OMPT_GET_RETURN_ADDRESS(1); /* the address of the function who calls __kmpc_fork_call */
-    record->user_frame = parent_task_frame->reenter_runtime_frame;
-    record->codeptr_ra = codeptr_ra;
-
-    record->time_stamp = read_timer();
-
-    record->team_size = record->user_team_size;
-    if (record->team_size != record->user_team_size) {
-        omp_set_num_threads(record->team_size);
+    ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, codeptr_ra);
+    push_lexgion(emap, lgp);
+    int team_size = requested_team_size;
+    int diff;
+#ifdef OMPT_MEASUREMENT_SUPPORT
+    if (lgp->total_record == 1) { /* the first record */
+        ompt_measure_init(&lgp->current);
+        ompt_measure_init(&lgp->accu);
+    } else {
+#ifdef REX_RAUTO_TUNING
+        if (lgp->current.requested_team_size == requested_team_size) { /* if we are executing the parallel lexgion of the same problem size */
+            if (lgp->total_record == 2) { /* second time, tuning started */
+                    memcpy(&lgp->best, &lgp->current, sizeof(ompt_measurement_t));
+                    lgp->best_counter = 1;
+                    team_size = requested_team_size - 1;
+                    if (team_size <= 0) team_size = 1;
+                    __kmp_push_num_threads(NULL, thread_id, team_size);
+            } else {
+                if (lgp->best_counter < 5) { /* we will keep auto-tuning for at least 5 times */
+                    diff = ompt_measure_compare(&lgp->best, &lgp->current);
+                    //printf("perf improvement of last one over the best: %d%%\n", diff);
+                    if (diff >= 0){ /* the second time, or better performance */
+                        memcpy(&lgp->best, &lgp->current, sizeof(ompt_measurement_t));
+                        lgp->best_counter = 1;
+                        team_size = lgp->current.team_size - 1;
+                        if (team_size <= 0) team_size = 1;
+                        __kmp_push_num_threads(NULL, thread_id, team_size);
+                        printf("set team size for %X: %d->%d, improvement %d%%\n", codeptr_ra, requested_team_size, team_size, diff);
+                    } else {
+                        team_size = lgp->best.team_size;
+                        lgp->best_counter++;
+                        __kmp_push_num_threads(NULL, thread_id, team_size);
+                    }
+                } else {
+                    team_size = lgp->best.team_size;
+                    lgp->best_counter++;
+                    __kmp_push_num_threads(NULL, thread_id, team_size);
+                    //printf("No tune anymore for this lexgion: %X, at count: %d\n", codeptr_ra, lgp->total_record);
+                }
+            }
+        }
+#endif
     }
-#ifdef PE_MEASUREMENT_SUPPORT
-    add_pe_measurement(record);
+    lgp->current.requested_team_size = requested_team_size;
+    lgp->current.team_size = team_size;
 #endif
-#ifdef PAPI_MEASUREMENT_SUPPORT
-    add_papi_measurement_start_counters(record);
+
+#ifdef OMPT_TRACING_SUPPORT
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_parallel_begin, frame, codeptr_ra);
+    add_record_lexgion(lgp, record);
+    //
+    record->requested_team_size = requested_team_size;
+    record->team_size = team_size;
+    record->codeptr_ra = codeptr_ra;
 #endif
-    mark_region_begin(thread_id);
-    add_parallel_src(emap, codeptr_ra, record);
+
+#ifdef OMPT_MEASUREMENT_SUPPORT
+    ompt_measure(&lgp->current);
+#endif
+
     //printf("Thread: %d parallel begin: FRAME_ADDRESS: %p, LOCATION: %p, exit_runtime_frame: %p, reenter_runtime_frame: %p, codeptr_ra: %p\n",
     //thread_id, record->user_frame, record->codeptr_ra, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, codeptr_ra);
     //print_ids(4);
 }
+
 #define ONLINE_TRACING_PRINT 1
 static void
 on_ompt_callback_parallel_end(
@@ -234,39 +204,37 @@ on_ompt_callback_parallel_end(
         ompt_task_data_t *task_data,
         ompt_invoker_t invoker,
         const void *codeptr_ra) {
-    int thread_id = rex_get_global_thread_num();
+    int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
-    ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_parallel_end, NULL, codeptr_ra);
-    end_record->time_stamp = read_timer();
-    end_record->ompt_id = parallel_data->value;
-    /* find the trace record for the begin_event of the parallel region */
-    ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
+    ompt_lexgion_t * lgp = ompt_lexgion_end(emap);
 
+#ifdef OMPT_MEASUREMENT_SUPPORT
+    ompt_measure_consume(&lgp->current);
+    ompt_measure_accu(&lgp->accu, &lgp->current);
+#endif
+
+    //const void *codeptr_ra  =  OMPT_GET_RETURN_ADDRESS(2); /* address of the function who calls __kmpc_fork_call */
+    const void *frame = NULL; // OMPT_GET_FRAME_ADDRESS(0);
+
+#ifdef OMPT_TRACING_SUPPORT
+    ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_parallel_end, frame, codeptr_ra);
+    /* find the trace record for the begin_event of the parallel region */
+    ompt_trace_record_t *begin_record = get_last_lexgion_record(emap);
     /* pair the begin and end event together so we create a double-link between each other */
     link_records(begin_record, end_record);
 
-#ifdef PE_MEASUREMENT_SUPPORT
-    ompt_pe_trace_record_t * end_pe_record = add_pe_measurement(end_record);
+#ifdef OMPT_MEASUREMENT_SUPPORT
+    begin_record->measurement = lgp->current;
 #endif
-#ifdef PAPI_MEASUREMENT_SUPPORT
-    ompt_papi_stop_counters(begin_record->papi_record);
+#ifdef OMPT_ONLINE_TRACING_PRINT
+    printf("Thread: %d, parallel: %X, record: %d\t|", thread_id, codeptr_ra, begin_record->record_id);
+    ompt_measure_print_header(&lgp->current);
+    printf("                                    \t|");
+    ompt_measure_print(&lgp->current);
 #endif
+#endif
+    pop_lexgion(emap);
 
-#ifdef ONLINE_TRACING_PRINT
-    printf("Total time: %.3f(s)", end_record->time_stamp - begin_record->time_stamp);
-#ifdef PE_MEASUREMENT_SUPPORT
-    ompt_pe_trace_record_t * begin_pe_record = begin_record->pe_record;
-    double package_energy = energy_consumed(begin_pe_record->package, end_pe_record->package);
-    double pp0_energy = energy_consumed(begin_pe_record->pp0, end_pe_record->pp0);
-    double pp1_energy = energy_consumed(begin_pe_record->pp1, end_pe_record->pp1);
-    double dram_energy = energy_consumed(begin_pe_record->dram, end_pe_record->dram);
-    double total_energy = package_energy + dram_energy;
-    printf(", Energy total (PKG+DRAM): %.6fj(package: %.6fj, PP0: %.6fj, PP1: %.6fj, and DRAM: %.6fj)", total_energy,
-            package_energy, pp1_energy, pp0_energy, dram_energy);
-#endif
-    printf("\n");
-#endif
-    mark_region_end(thread_id);
 //    printf("Thread: %d parallel end\n", thread_id);
 /*
   if(inner_counter == iteration_ompt)
@@ -281,37 +249,49 @@ on_ompt_callback_parallel_end(
   }
   else inner_counter++;
 */
-    if (begin_record->team_size != begin_record->user_team_size) {
-        omp_set_num_threads(begin_record->user_team_size); /* restore back to the original team size users want */
-    }
 }
 
 static void
 on_ompt_callback_thread_begin(
         ompt_thread_type_t thread_type,
         ompt_data_t *thread_data) {
-    int thread_id = rex_get_global_thread_num();
-    init_thread_event_map(thread_id, thread_data);
-    thread_data->value = thread_id; //ompt_get_unique_id();
-    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_thread_begin, NULL, NULL);
-    record->time_stamp = read_timer();
-    mark_region_begin(thread_id);
-    //printf("%" PRIu64 ": ompt_event_thread_begin: thread_type=%s=%d, thread_id=%" PRIu64 "\n", ompt_get_thread_data()->value, ompt_thread_type_t_values[thread_type], thread_type, thread_data->value);
+    int thread_id = get_global_thread_num();
+    thread_event_map_t * emap = init_thread_event_map(thread_id);
+#ifdef OMPT_TRACING_SUPPORT
+    emap->records = (ompt_trace_record_t *) malloc(sizeof(ompt_trace_record_t) * MAX_NUM_RECORDS);
+#endif
+    const void *codeptr_ra = &on_ompt_callback_thread_begin; 
+    const void *frame = NULL; //OMPT_GET_FRAME_ADDRESS(0);
+    ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, codeptr_ra);
+    push_lexgion(emap, lgp);
+#ifdef OMPT_TRACING_SUPPORT
+    emap->records = (ompt_trace_record_t *) malloc(sizeof(ompt_trace_record_t) * MAX_NUM_RECORDS);
+    ompt_trace_record_t *record = add_trace_record(thread_id, ompt_callback_thread_begin, frame, codeptr_ra);
+    add_record_lexgion(lgp, record);
+#endif
     //printf("Thread: %d thread begin\n", thread_id);
+    ompt_measure_init(&emap->thread_total);
+    ompt_measure(&emap->thread_total);
 }
 
 static void
 on_ompt_callback_thread_end(
         ompt_data_t *thread_data) {
-    int thread_id = rex_get_global_thread_num();
+    int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
-    ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_thread_end, NULL, NULL);
-    ompt_trace_record_t *begin_record = get_last_region_begin_record(emap);
+    const void *codeptr_ra = &on_ompt_callback_thread_end; /* address of the function who calls __kmpc_fork_call */
+    const void *frame = NULL; //OMPT_GET_FRAME_ADDRESS(0);
+    //printf("Thread: %d thread end\n", thread_id);
+#ifdef OMPT_TRACING_SUPPORT
+    ompt_trace_record_t *end_record = add_trace_record(thread_id, ompt_callback_thread_end, frame, codeptr_ra);
+    ompt_trace_record_t *begin_record = get_last_lexgion_record(emap);
 
     /* pair the begin and end event together so we create a double-link between each other */
     link_records(begin_record, end_record);
+#endif
 //    fini_thread_event_map(thread_id);
-    //printf("Thread: %d thread end\n", thread_id);
+    pop_lexgion(emap);
+    ompt_measure_consume(&emap->thread_total);
 }
 
 #define register_callback_t(name, type)                       \
@@ -366,35 +346,23 @@ int ompt_initialize(
     }
 #endif
 
-    epoch_begin.time_stamp = read_timer();
-#ifdef PE_MEASUREMENT_SUPPORT
-    init_pe_units();
-    pe_measure(pe_epoch_begin.package, pe_epoch_begin.pp0, pe_epoch_begin.pp1, pe_epoch_begin.dram);
-#endif
+    ompt_measure_global_init( );
+    ompt_measure_init(&total_consumed);
+    ompt_measure(&total_consumed);
 
     return 1; //success
 }
 
 void ompt_finalize(ompt_fns_t *fns) {
     // on_ompt_event_runtime_shutdown();
-
-    /* stop the RAPL power collection and read the power/energy info */
-    epoch_end.time_stamp = read_timer();
-#ifdef PE_MEASUREMENT_SUPPORT
-    pe_measure(pe_epoch_end.package, pe_epoch_end.pp0, pe_epoch_end.pp1, pe_epoch_end.dram);
-#endif
-
-    printf("Total time: %.3f(s)", epoch_end.time_stamp - epoch_begin.time_stamp);
-#ifdef PE_MEASUREMENT_SUPPORT
-    double package_energy = energy_consumed(pe_epoch_begin.package, pe_epoch_end.package);
-    double pp0_energy = energy_consumed(pe_epoch_begin.pp0, pe_epoch_end.pp0);
-    double pp1_energy = energy_consumed(pe_epoch_begin.pp1, pe_epoch_end.pp1);
-    double dram_energy = energy_consumed(pe_epoch_begin.dram, pe_epoch_end.dram);
-    double total_energy = package_energy + dram_energy;
-    printf(", Energy total (PKG+DRAM): %.6fj(package: %.6fj, PP0: %.6fj, PP1: %.6fj, and DRAM: %.6fj)", total_energy,
-            package_energy, pp1_energy, pp0_energy, dram_energy);
-#endif
-    printf("\n");
+    ompt_measure_consume(&total_consumed);
+    ompt_measure_global_fini( );
+    printf("==============================================================================================\n");
+    printf("Total OpenMP Execution: | ");
+    ompt_measure_print_header(&total_consumed);
+    printf("                        | ");
+    ompt_measure_print(&total_consumed);
+    printf("==============================================================================================\n");
 
     /*
     void* callstack[128];
@@ -405,10 +373,9 @@ void ompt_finalize(ompt_fns_t *fns) {
     }
      */
 
-//    int thread_id = rex_get_global_thread_num();
+//    int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(0);
-    list_past_parallels(emap);
-    list_past_src_parallels(emap);
+    list_past_lexgions(emap);
 }
 
 ompt_fns_t *ompt_start_tool(
