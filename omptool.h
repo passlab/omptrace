@@ -10,13 +10,20 @@
 #define MAX_NUM_PACKAGES 16
 
 /**
- * This could be in cmake
-//macro for features, these macro can also be set through compiler flags in Makefile
+//macro for features, now in CMakeLists.txt
+
+//For tracing
+#define OMPT_TRACING_SUPPORT 1
+#define OMPT_ONLINE_TRACING_PRINT 1
+
+//For additional measurement
+#define OMPT_MEASUREMENT_SUPPORT 1
+#define PAPI_MEASUREMENT_SUPPORT 1
+#define PE_MEASUREMENT_SUPPORT 1
+
+//For optimization
 #define PE_OPTIMIZATION_SUPPORT 1
 #define PE_OPTIMIZATION_DVFS 1
-#define PE_MEASUREMENT_SUPPORT 1
-#define PAPI_MEASUREMENT_SUPPORT 1
-#define REX_RAUTO_SUPPORT 1
 */
 
 #ifdef PE_OPTIMIZATION_SUPPORT
@@ -77,7 +84,7 @@ typedef struct ompt_trace_record {
     int event_id;
     short event_id_additional; /* additional info about the event, e.g. begin event of a callback_idle */
     ompt_id_t graph_id;
-    void *user_frame;
+    const void *user_frame;
     const void *codeptr_ra;
     struct ompt_trace_record *next; /* the link of the link list for all the records of the same lexical region */
     ompt_id_t target_id;
@@ -157,7 +164,7 @@ extern ompt_lexgion_t * pop_lexgion(thread_event_map_t * emap);
 extern void list_past_lexgions(thread_event_map_t * emap);
 extern ompt_lexgion_t * ompt_lexgion_begin(thread_event_map_t * emap, const void * codeptr_ra);
 extern ompt_lexgion_t * ompt_lexgion_end(thread_event_map_t * emap);
-extern ompt_trace_record_t * add_trace_record(int thread_id, int event_id, ompt_frame_t *frame, const void *codeptr_ra);
+extern ompt_trace_record_t * add_trace_record(int thread_id, int event_id, const ompt_frame_t *frame, const void *codeptr_ra);
 extern void add_record_lexgion(ompt_lexgion_t * lgp, ompt_trace_record_t * record);
 extern void link_records(ompt_trace_record_t * begin, ompt_trace_record_t * end);
 

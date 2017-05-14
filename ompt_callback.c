@@ -23,6 +23,9 @@ static ompt_get_place_num_t ompt_get_place_num;
 static ompt_get_partition_place_nums_t ompt_get_partition_place_nums;
 static ompt_get_proc_id_t ompt_get_proc_id;
 
+#define ompt_callback_idle_spin  9900
+#define ompt_callback_idle_suspend 9900
+
 static void
 on_ompt_callback_idle_spin(void * data) {
     const void *codeptr_ra  =  &on_ompt_callback_idle_spin;
@@ -128,7 +131,7 @@ on_ompt_callback_parallel_begin(
         const void *codeptr_ra) {
     parallel_data->value = ompt_get_unique_id();
 //    const void *codeptr_ra = OMPT_GET_RETURN_ADDRESS(0); /* address of the function who calls __kmpc_fork_call */
-//    const void *frame = parent_task_frame->reenter_runtime_frame;
+    const void *frame = parent_task_frame->reenter_runtime_frame;
     //const void *frame = OMPT_GET_FRAME_ADDRESS(0); /* the frame of the function who calls __kmpc_fork_call */
     int thread_id = get_global_thread_num();
     thread_event_map_t * emap = &event_maps[thread_id];
@@ -197,7 +200,6 @@ on_ompt_callback_parallel_begin(
     //print_ids(4);
 }
 
-#define ONLINE_TRACING_PRINT 1
 static void
 on_ompt_callback_parallel_end(
         ompt_data_t *parallel_data,
@@ -227,7 +229,7 @@ on_ompt_callback_parallel_end(
     begin_record->measurement = lgp->current;
 #endif
 #ifdef OMPT_ONLINE_TRACING_PRINT
-    printf("Thread: %d, parallel: %X, record: %d\t|", thread_id, codeptr_ra, begin_record->record_id);
+    printf("Thread: %d, parallel: %p, record: %d\t|", thread_id, codeptr_ra, begin_record->record_id);
     ompt_measure_print_header(&lgp->current);
     printf("                                    \t|");
     ompt_measure_print(&lgp->current);

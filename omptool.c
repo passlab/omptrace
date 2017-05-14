@@ -62,7 +62,7 @@ void fini_thread_event_map(int thread_id) {
 /**
  * Add a trace record to a thread's event map and return the record
  */
-ompt_trace_record_t *add_trace_record(int thread_id, int event_id, ompt_frame_t *frame, const void *codeptr_ra) {
+ompt_trace_record_t *add_trace_record(int thread_id, int event_id, const ompt_frame_t *frame, const void *codeptr_ra) {
     thread_event_map_t *emap = get_event_map(thread_id);
     emap->counter++;
     int counter = emap->counter;
