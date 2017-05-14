@@ -1,4 +1,7 @@
-## towards_tr4 llvm openmp runtime standalone build
+## towards_tr4 llvm openmp runtime standalone build on my Ubuntu vm
+
+Note: append -DLIBOMP_HWLOC_INSTALL_DIR=/opt/hwloc-1.11.2-install to point to the location of hwloc install if cmake cannot find it. 
+
 ~~~~~
 yan@vm:~/tools/llvm-openmp/BUILD$ cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=on -DLIBOMP_OMPT_TRACE=on -DLIBOMP_USE_HWLOC=on  ..
 -- The C compiler identification is GNU 5.4.0
