@@ -218,9 +218,11 @@ void list_past_lexgions(thread_event_map_t * emap) {
     }
 }
 
+#ifdef PAPI_MEASUREMENT_SUPPORT
 void PAPI_overflow_handler(int EventSet, void *address, long_long overflow_vector, void *context) {
     printf("Overflow at %p! bit=0x%llx \en", address, overflow_vector);
 }
+#endif
 
 void ompt_measure_global_init() {
 #ifdef PE_MEASUREMENT_SUPPORT
