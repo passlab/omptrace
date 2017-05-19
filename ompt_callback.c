@@ -229,7 +229,7 @@ on_ompt_callback_parallel_end(
     begin_record->measurement = lgp->current;
 #endif
 #ifdef OMPT_ONLINE_TRACING_PRINT
-    printf("Thread: %d, parallel: %p, record: %d\t|", thread_id, codeptr_ra, begin_record->record_id);
+    printf("Thread: %d, parallel: %p, record: %d  |", thread_id, codeptr_ra, begin_record->record_id);
     ompt_measure_print_header(&lgp->current);
     printf("                                    \t|");
     ompt_measure_print(&lgp->current);

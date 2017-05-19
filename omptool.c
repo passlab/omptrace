@@ -243,7 +243,7 @@ void ompt_measure_global_init() {
     int eventSet = PAPI_NULL;
     PAPI_create_eventset(&eventSet);
     int num = PAPI_add_events(eventSet, PAPI_Events, NUM_PAPI_EVENTS);
-    printf("%d events added\n", num);
+    //printf("%d PAPI events added\n", num);
     int rtval = PAPI_overflow(eventSet, PAPI_TOT_INS, 1000, 0, PAPI_overflow_handler);
     if (rtval != PAPI_OK) printf("PAPI_overflow failed: %d\n", rtval);
 #endif

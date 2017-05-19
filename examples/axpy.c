@@ -13,8 +13,19 @@
 #include <omp.h>
 
 /* read timer in second */
-double read_timer();
-double read_timer_ms();
+static double read_timer() {
+    struct timeb tm;
+    ftime(&tm);
+    return (double) tm.time + (double) tm.millitm / 1000.0;
+}
+
+/* read timer in ms */
+static double read_timer_ms() {
+    struct timeb tm;
+    ftime(&tm);
+    return (double) tm.time * 1000.0 + (double) tm.millitm;
+}
+
 #define REAL float
 #define VECTOR_LENGTH 102400
 
