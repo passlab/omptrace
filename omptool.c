@@ -173,9 +173,9 @@ ompt_lexgion_t * ompt_lexgion_end(thread_event_map_t * emap) {
     return lgp;
 }
 
-static void print_lexgion(thread_event_map_t * emap, ompt_lexgion_t * lgp) {
-    printf("================================= Parallel at %p (total %d executions): ============================\n",
-           lgp->codeptr_ra, lgp->total_record);
+static void print_lexgion(int count, thread_event_map_t * emap, ompt_lexgion_t * lgp) {
+    printf("================================= #%d Parallel at %p (total %d executions): ============================\n",
+           count, lgp->codeptr_ra, lgp->total_record);
     printf("Accumulated Stats: | ");
     ompt_measure_print_header(&lgp->accu);
     printf("                   | ");
@@ -185,12 +185,12 @@ static void print_lexgion(thread_event_map_t * emap, ompt_lexgion_t * lgp) {
     printf("#Record_id(team size)| ");
     ompt_measure_print_header(&lgp->accu);
     ompt_trace_record_t * record = lgp->most_recent;
-    int counter = 1;
+    count = 1;
     while (record != NULL) {
-        printf("#%d: %d(%d)\t| ", counter, record->record_id, record->team_size);
+        printf("#%d: %d(%d)\t| ", count, record->record_id, record->team_size);
         ompt_measure_print(&record->measurement);
         record = record->next;
-        counter++;
+        count++;
     }
     printf("-----------------------------------------------------------------------------------------------------\n");
 #endif
@@ -206,15 +206,16 @@ void list_past_lexgions(thread_event_map_t * emap) {
     printf("==============================================================================================\n");
     printf("==============================================================================================\n");
 
+    int counter = 0;
     /* search forward from the most recent one */
     for (i=emap->lexgion_recent; i<=emap->lexgion_last_index; i++) {
         ompt_lexgion_t * lgp = &emap->lexgions[i];
-        print_lexgion(emap, lgp);
+        print_lexgion(++counter, emap, lgp);
     }
     /* search from 0 to most recent one */
     for (i=0; i<emap->lexgion_recent; i++) {
         ompt_lexgion_t * lgp = &emap->lexgions[i];
-        print_lexgion(emap, lgp);
+        print_lexgion(++counter, emap, lgp);
     }
 }
 
