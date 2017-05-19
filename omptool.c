@@ -366,6 +366,7 @@ void ompt_measure_accu(ompt_measurement_t * accu, ompt_measurement_t * me) {
 #endif
 }
 
+#define PAPI_CPI_PRINT 1
 /**
  * print the info in certain format
  * @param me
@@ -382,6 +383,9 @@ void ompt_measure_print(ompt_measurement_t * me) {
 #endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     printf("\t\t");
+#ifdef PAPI_CPI_PRINT
+    printf("%.1f\t\t", ((double)me->papi_counter[1])/((double)me->papi_counter[0]));
+#endif
     int i;
     for (i=0; i<me->num_papi_events; i++) {
         printf("%lld\t\t", me->papi_counter[i]);
@@ -396,13 +400,16 @@ void ompt_measure_print_header(ompt_measurement_t * me) {
     printf("\tEnergy (j) total (PKG+DRAM): package\tPP0\t\t\tPP1\t\t\tDRAM");
 #endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
+    printf("\t\t");
+#ifdef PAPI_CPI_PRINT
+    printf("PAPI_CPI\t");
+#endif
     int i;
     int Events[NUM_PAPI_EVENTS];
     int number = NUM_PAPI_EVENTS;
 //    PAPI_list_events(me->eventSet, Events, &number);
 //    printf("%d PAPI events\n", number);
     char EventName[PAPI_MAX_STR_LEN];
-    printf("\t\t");
     for (i=0; i<number; i++) {
         //PAPI_event_code_to_name(Events[i], EventName);
         PAPI_event_code_to_name(PAPI_Events[i], EventName);
