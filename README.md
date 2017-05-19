@@ -1,5 +1,5 @@
 
-# Visu and power steering tool using OMPT
+# OMPTool for performance measurement, tracing and auto-steering support
 
 ## Prerequisite and Installation
 1. OpenMP implementation that supports OMPT interface, which is the towards_tr4 branch of https://github.com/OpenMPToolsInterface/LLVM-openmp/tree/towards_tr4
@@ -24,6 +24,23 @@
            CC=/opt/gcc-5.3.0-install/bin/gcc CXX=/opt/gcc-5.3.0-install/bin/g++ cmake -DLIBOMP_OMPT_SUPPORT=on -DLIBOMP_OMPT_TRACE=on -DLIBOMP_USE_HWLOC=on -DLIBOMP_HWLOC_INSTALL_DIR=/opt/hwloc-1.11.2-install -DCMAKE_INSTALL_PREFIX=<install_path> ..
            
   1. location for header files (omp.h and ompt.h) and libomp.so library are `<install_path>/include` and `<install_path>/lib` if the runtime is installed standalone. If it is installed as part of clang/llvm, the header location is `<install_path>/lib/clang/5.0.0/include`, and the libomp.so is from `<install_path>/lib`. Setup the library path for execution by letting LD_LIBRARY_PATH env include the lib path. For development and compiling, you need to provide the header path and lib path to the -I and -L flags of the compiler.
+
+## Installation of omptool
+
+### On fornax:
+    git clone this repo
+    cd omptool; 
+ Modify the CMakeList.txt file to let the following variables point to the right location of OMPT-enabled runtime installation and PAPI. See below for the setting on fornax: 
+~~~~
+    set(OMP_STANDALONE_INSTALL /home/yan/tools/llvm-openmp/BUILD/runtime/src)
+    set(OMP_LIB_PATH ${OMP_STANDALONE_INSTALL})
+    set(OMP_INCLUDE ${OMP_STANDALONE_INSTALL})
+    set(PAPI_INSTALL /usr/local)
+~~~~
+
+    mkdir build; cd build
+    CC=/opt/gcc-5.3.0-install/bin/gcc CXX=/opt/gcc-5.3.0-install/bin/g++ cmake ..
+    make
 
 #### On orion.ec.oakland.edu
 The compiler and runtime are already installed in /opt/llvm/llvm-ompt-install, so set the following
