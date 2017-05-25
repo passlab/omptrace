@@ -384,7 +384,7 @@ void ompt_measure_print(ompt_measurement_t * me) {
 #ifdef PAPI_MEASUREMENT_SUPPORT
     printf("\t\t");
 #ifdef PAPI_CPI_PRINT
-    printf("%.1f\t\t", ((double)me->papi_counter[1])/((double)me->papi_counter[0]));
+    printf("%.3f\t\t", ((double)me->papi_counter[1])/((double)me->papi_counter[0]));
 #endif
     int i;
     for (i=0; i<me->num_papi_events; i++) {
