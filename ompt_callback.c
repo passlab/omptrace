@@ -136,6 +136,7 @@ on_ompt_callback_parallel_begin(
     int thread_id = get_global_thread_num();
     thread_event_map_t * emap = &event_maps[thread_id];
     ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, codeptr_ra);
+    parallel_data->ptr = lgp;
     push_lexgion(emap, lgp);
     int team_size = requested_team_size;
     int diff;
@@ -251,6 +252,27 @@ on_ompt_callback_parallel_end(
   }
   else inner_counter++;
 */
+}
+
+static void
+on_ompt_callback_implicit_task(
+        ompt_scope_endpoint_t endpoint,
+        ompt_data_t *parallel_data,
+        ompt_data_t *task_data,
+        unsigned int team_size,
+        unsigned int thread_num)
+{
+    int thread_id = get_global_thread_num();
+    switch(endpoint)
+    {
+        case ompt_scope_begin:
+            task_data->value = ompt_get_unique_id();
+            //printf("%" PRIu64 ": ompt_event_implicit_task_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", team_size=%" PRIu32 ", thread_num=%" PRIu32 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, team_size, thread_num);
+            break;
+        case ompt_scope_end:
+            //printf("%" PRIu64 ": ompt_event_implicit_task_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", team_size=%" PRIu32 ", thread_num=%" PRIu32 "\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, team_size, thread_num);
+            break;
+    }
 }
 
 static void
