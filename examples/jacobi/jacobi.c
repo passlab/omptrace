@@ -183,7 +183,7 @@ int main(int argc, char *argv[]) {
     initialize(n, m, alpha, &dx, &dy, u, f);
     memcpy(uomp, u, sizeof(REAL) * n * m);
 
-    REAL elapsed = read_timer_ms();
+    double elapsed = read_timer_ms();
     jacobi_seq(n, m, dx, dy, alpha, relax, u, f, tol, mits);
     elapsed = read_timer_ms() - elapsed;
     printf("seq elasped time(ms): %12.6g\n", elapsed);
