@@ -232,7 +232,7 @@ on_ompt_callback_parallel_end(
     printf("Thread: %d, parallel: %p, record: %d  |", thread_id, codeptr_ra, begin_record->record_id);
     ompt_measure_print_header(&lgp->current);
     printf("                                    \t|");
-    ompt_measure_print(&lgp->current);
+    ompt_measure_print(&lgp->current, -1);
 #endif
 #endif
     pop_lexgion(emap);
@@ -363,7 +363,7 @@ void ompt_finalize(ompt_fns_t *fns) {
     printf("Total OpenMP Execution: | ");
     ompt_measure_print_header(&total_consumed);
     printf("                        | ");
-    ompt_measure_print(&total_consumed);
+    ompt_measure_print(&total_consumed, NULL);
     printf("==============================================================================================\n");
 
     /*

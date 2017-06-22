@@ -173,13 +173,22 @@ ompt_lexgion_t * ompt_lexgion_end(thread_event_map_t * emap) {
     return lgp;
 }
 
+#define OMPT_CSV_OUTPUT 1
+
 static void print_lexgion(int count, thread_event_map_t * emap, ompt_lexgion_t * lgp) {
     printf("================================= #%d Parallel at %p (total %d executions): ============================\n",
            count, lgp->codeptr_ra, lgp->total_record);
     printf("Accumulated Stats: | ");
     ompt_measure_print_header(&lgp->accu);
     printf("                   | ");
-    ompt_measure_print(&lgp->accu);
+    FILE* csv_fid = NULL;
+    ompt_measure_print(&lgp->accu, csv_fid);
+
+#if defined(OMPT_CSV_OUTPUT)
+    char filename[128];
+    sprintf(filename, "%d_%p_%d.csv", count, lgp->codeptr_ra, lgp->total_record);
+    csv_fid = fopen(filename, "w+");
+#endif
 #if defined(OMPT_TRACING_SUPPORT) && defined(OMPT_MEASUREMENT_SUPPORT)
     printf("---------------------------------- Execution Records ------------------------------------------------\n");
     printf("#Record_id(team size)| ");
@@ -188,10 +197,13 @@ static void print_lexgion(int count, thread_event_map_t * emap, ompt_lexgion_t *
     count = 1;
     while (record != NULL) {
         printf("#%d: %d(%d)\t| ", count, record->record_id, record->team_size);
-        ompt_measure_print(&record->measurement);
+        ompt_measure_print(&record->measurement, csv_fid);
         record = record->next;
         count++;
     }
+#if defined(OMPT_CSV_OUTPUT)
+    fclose(csv_fid);
+#endif
     printf("-----------------------------------------------------------------------------------------------------\n");
 #endif
     printf("==================================================================================================================\n");
@@ -371,8 +383,11 @@ void ompt_measure_accu(ompt_measurement_t * accu, ompt_measurement_t * me) {
  * print the info in certain format
  * @param me
  */
-void ompt_measure_print(ompt_measurement_t * me) {
+void ompt_measure_print(ompt_measurement_t * me, FILE* csvfile) {
     printf("%.2f", me->time_stamp);
+#if defined(OMPT_CSV_OUTPUT)
+    if (csvfile != NULL) fprintf(csvfile, "%.2f,", me->time_stamp);
+#endif
 #ifdef PE_MEASUREMENT_SUPPORT
     double package_energy = me->pe_package[0];
     double pp0_energy = me->pe_pp0[0];
@@ -380,16 +395,28 @@ void ompt_measure_print(ompt_measurement_t * me) {
     double dram_energy = me->pe_dram[0];
     double total_energy = package_energy + dram_energy;
     printf("\t\t%.2f\t\t%.2f\t\t%.2f\t\t%.2f\t\t\t%.2f", total_energy, package_energy, pp1_energy, pp0_energy, dram_energy);
+#if defined(OMPT_CSV_OUTPUT)
+    if (csvfile != NULL) fprintf(csvfile, "%.2f,%.2f,%.2f,%.2f,%.2f,", total_energy, package_energy, pp1_energy, pp0_energy, dram_energy);
+#endif
 #endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     printf("\t\t");
 #ifdef PAPI_CPI_PRINT
     printf("%.3f\t\t", ((double)me->papi_counter[1])/((double)me->papi_counter[0]));
+#if defined(OMPT_CSV_OUTPUT)
+    if (csvfile != NULL) fprintf(csvfile, "%.3f,", ((double)me->papi_counter[1])/((double)me->papi_counter[0]));
+#endif
 #endif
     int i;
     for (i=0; i<me->num_papi_events; i++) {
         printf("%lld\t\t", me->papi_counter[i]);
+#if defined(OMPT_CSV_OUTPUT)
+        if (csvfile != NULL) fprintf(csvfile, "%lld,", me->papi_counter[i]);
+#endif
     }
+#endif
+#if defined(OMPT_CSV_OUTPUT)
+    if (csvfile != NULL) fprintf(csvfile, "\n");
 #endif
     printf("\n");
 }

@@ -1,3 +1,4 @@
+#include <stdio.h>
 #include <ompt.h>
 #include "kmp_hack.h"
 
@@ -181,7 +182,7 @@ extern void ompt_measure_consume(ompt_measurement_t * me);
 extern void ompt_measure_diff(ompt_measurement_t * consumed, ompt_measurement_t * begin_me, ompt_measurement_t * end_me);
 extern void ompt_measure_accu(ompt_measurement_t * accu, ompt_measurement_t * me);
 extern int ompt_measure_compare(ompt_measurement_t * best, ompt_measurement_t * current);
-extern void ompt_measure_print(ompt_measurement_t * me);
+extern void ompt_measure_print(ompt_measurement_t * me, FILE * csv_fid);
 extern void ompt_measure_print_header(ompt_measurement_t * me);
 
 #ifdef PE_MEASUREMENT_SUPPORT
