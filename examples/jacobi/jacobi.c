@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
     memcpy(uomp, u, sizeof(REAL) * n * m);
 
     double elapsed = read_timer_ms();
-    jacobi_seq(n, m, dx, dy, alpha, relax, u, f, tol, mits);
+    //jacobi_seq(n, m, dx, dy, alpha, relax, u, f, tol, mits);
     elapsed = read_timer_ms() - elapsed;
     printf("seq elasped time(ms): %12.6g\n", elapsed);
     double mflops = (0.001 * mits * (n - 2) * (m - 2) * 13) / elapsed;
@@ -292,7 +292,8 @@ void jacobi_omp(int n, int m, REAL dx, REAL dy, REAL alpha, REAL omega, REAL *u_
     REAL ay;
     REAL b;
     REAL resid;
-    REAL uold[n][m];
+    REAL *tmp = (REAL *) malloc(sizeof(REAL) * n * m);
+    REAL (*uold)[m] = (REAL (*)[m]) tmp;
     REAL (*u)[m] = (REAL (*)[m]) u_p;
     REAL (*f)[m] = (REAL (*)[m]) f_p;
     /*
@@ -333,5 +334,6 @@ void jacobi_omp(int n, int m, REAL dx, REAL dy, REAL alpha, REAL omega, REAL *u_
     } /*  End iteration loop */
     printf("Total Number of Iterations: %d\n", k);
     printf("Residual: %.15g\n", error);
+    free(tmp);
 }
 

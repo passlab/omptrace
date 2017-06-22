@@ -1,2 +1,2 @@
 jacobi: jacobi.c
-	clang -fopenmp $^ -o $@ -lm
+	clang -fopenmp -g $^ -o $@ -lm
