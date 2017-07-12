@@ -8,7 +8,7 @@
  
  ### Tracecompass development. Tracecompass is an Eclipse plugin and framework. Follow the steps from the wiki page for the development:
  * Set up Eclipse development environment
- * Clone tracecompass repo
+ * Clone tracecompass repo (https://git.eclipse.org/c/tracecompass/org.eclipse.tracecompass.git/about/)
  * Study the developer guide and browse source code for the development
  * Eclipse plugin tutorial (http://www.vogella.com/tutorials/EclipsePlugin/article.html)
 
