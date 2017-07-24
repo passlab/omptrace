@@ -32,7 +32,7 @@ TRACEPOINT_EVENT(lttng_visuomp, parallel_begin,
 TRACEPOINT_EVENT(lttng_visuomp, parallel_end,
 	TP_ARGS(int, gtid,
 		ompt_data_t*, parallel_data,
-		ompt_task_data_t*, task_data,
+		ompt_data_t*, task_data,
   		const void *, codeptr_ra
 	),
 	TP_FIELDS(
