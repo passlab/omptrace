@@ -20,6 +20,8 @@ double read_timer_ms() {
 
 /* so far we only handle max 256 threads */
 thread_event_map_t event_maps[MAX_NUM_THREADS];
+volatile int num_threads = 0; /* this counter is not guaranteed to provide the
+ * actual exact number of threads until after it become useless :-) */
 ompt_measurement_t total_consumed;
 
 #ifdef PE_OPTIMIZATION_SUPPORT
@@ -45,10 +47,16 @@ thread_event_map_t * init_thread_event_map(int thread_id) {
     thread_event_map_t *emap = get_event_map(thread_id);
     emap->thread_id = thread_id;
     emap->counter = -1;
-    emap->innermost_lexgion = -1;
     emap->lexgion_last_index = -2;
     emap->lexgion_recent = -1;
     emap->records = NULL;
+    emap->lexgion_stack = NULL;
+    emap->record_stack = NULL;
+
+    /* this is data racing, but acceptable, since we donot rely on this counter to know the
+     * total number of threads */
+    num_threads ++;
+
     return emap;
 }
 
@@ -59,60 +67,101 @@ void fini_thread_event_map(int thread_id) {
     free(get_event_map(thread_id)->records);
 }
 
+void tribute_record_lexgion(ompt_lexgion_t *lgp, ompt_trace_record_t *rd) {
+    /* add record to the lexgion */
+    if (lgp->total_record == 1) { /* the first record */
+        lgp->most_recent = rd;
+        rd->next = NULL;
+        //printf("add first record (%X) for lexgion (%X): %X, now total: %d\n", record, lgp, lgp->codeptr_ra, lgp->total_record);
+    } else {
+        rd->next = lgp->most_recent;
+        lgp->most_recent = rd;
+        //printf("add one record (%X) for lexgion (%X): %X, now total: %d\n", record, lgp, lgp->codeptr_ra, lgp->total_record);
+    }
+}
+
 /**
- * Add a trace record to a thread's event map and return the record
+ * add a begin event trace record
+ * @param emap
+ * @param event_id
+ * @param frame
+ * @param lgp: the lexgion pointer
+ * @param parallel_lgrecord: the trace record that launches the lexgion this record belongs to. If NULL, this record is the
+ *                  launching record
+ * @return
  */
-ompt_trace_record_t *add_trace_record(int thread_id, int event_id, const ompt_frame_t *frame, const void *codeptr_ra) {
-    thread_event_map_t *emap = get_event_map(thread_id);
+ompt_trace_record_t *add_trace_record_begin(thread_event_map_t * emap, int event_id, const ompt_frame_t *frame,
+                                            ompt_lexgion_t *lgp, ompt_trace_record_t *parallel_lgrecord) {
     emap->counter++;
     int counter = emap->counter;
     ompt_trace_record_t *rd = get_trace_record_from_emap(emap, counter);
-
-    rd->event_id = event_id;
-    rd->uid = (((uint64_t)thread_id) << 4)  + emap->counter;
-    rd->user_frame = frame;
-    rd->codeptr_ra = codeptr_ra;
-    rd->match_record = -1;
     rd->record_id = counter;
+    rd->event = event_id;
+    rd->lgp = lgp;
+    rd->parallel_lgrecord = parallel_lgrecord;
+
+    rd->uid = (((uint64_t) emap->thread_id) << 4) + emap->counter;
+    rd->match_record = -1;
     //printf("Add trace record: %d\n", counter);
+
+    rd->endpoint = ompt_scope_begin;
+    rd->user_frame = frame;
+
+    /* tribute to its own lexgion */
+    tribute_record_lexgion(lgp, rd);
+
+    /* push to the record stack */
+    push_record(emap, rd);
+
     return rd;
 }
 
-void link_records(ompt_trace_record_t * begin, ompt_trace_record_t * end) {
-    begin->match_record = end->record_id;
-    end->match_record = begin->record_id;
+ompt_trace_record_t *add_trace_record_end(thread_event_map_t *emap, int event_id, const void *codeptr_ra) {
+    emap->counter++;
+    int counter = emap->counter;
+    ompt_trace_record_t *rd = get_trace_record_from_emap(emap, counter);
+    rd->record_id = counter;
+    rd->event = event_id;
+    rd->endpoint = ompt_scope_end;
+    rd->next = NULL;
+    rd->codeptr_ra = codeptr_ra;
+
+    ompt_trace_record_t * begin_record = top_record(emap);
+    rd->lgp = begin_record->lgp;
+    rd->parallel_lgrecord = begin_record->parallel_lgrecord;
+
+    rd->uid = (((uint64_t)emap->thread_id) << 4)  + emap->counter;
+    //printf("Add trace record: %d\n", counter);
+    /* pop record stack */
+    pop_record(emap);
+
+    /* link the begin and end record so we can easily find each other */
+    begin_record->match_record = counter;
+    rd->match_record = begin_record->record_id;
+
+    return rd;
 }
 
-/**
- * can only be called after the event_begin is added to the record
- *
- * We basically use stack for push/pop the indices
- * @param emap
- */
 void push_lexgion(thread_event_map_t * emap, ompt_lexgion_t * lgp) {
-    emap->innermost_lexgion++;
-    emap->lexgion_stack[emap->innermost_lexgion] = lgp;
-//    printf("lexgion begin: %X at %d\n", lgp, emap->innermost_lexgion);
+    lgp->parent = emap->lexgion_stack;
+    emap->lexgion_stack = lgp;
 }
 
 ompt_lexgion_t * pop_lexgion(thread_event_map_t *emap) {
-    ompt_lexgion_t * recent = emap->lexgion_stack[emap->innermost_lexgion];
-//    printf("lexgion end: %X at %d\n", recent, emap->innermost_lexgion);
-    emap->innermost_lexgion--;
-    return recent;
+    ompt_lexgion_t * top = emap->lexgion_stack;
+    emap->lexgion_stack = top->parent;
+    return top;
 }
 
-void add_record_lexgion(ompt_lexgion_t * lgp, ompt_trace_record_t * record) {
-    if (lgp->total_record == 1) { /* the first record */
-        lgp->most_recent = record;
-        record->next = NULL;
-        //printf("add first record (%X) for lexgion (%X): %X, now total: %d\n", record, lgp, lgp->codeptr_ra, lgp->total_record);
-    } else {
-        record->next = lgp->most_recent;
-        lgp->most_recent = record;
-        //printf("add one record (%X) for lexgion (%X): %X, now total: %d\n", record, lgp, lgp->codeptr_ra, lgp->total_record);
-    }
+void push_record(thread_event_map_t * emap, ompt_trace_record_t * record) {
+    record->parent = emap->record_stack;
+    emap->record_stack = record;
+}
 
+ompt_trace_record_t * pop_record(thread_event_map_t * emap) {
+    ompt_trace_record_t * top = emap->record_stack;
+    emap->record_stack = top->parent;
+    return top;
 }
 
 ompt_lexgion_t * ompt_lexgion_begin(thread_event_map_t * emap, const void * codeptr_ra) {
@@ -124,6 +173,7 @@ ompt_lexgion_t * ompt_lexgion_begin(thread_event_map_t * emap, const void * code
         lgp->codeptr_ra = codeptr_ra;
         lgp->most_recent = NULL;
         lgp->total_record = 1;
+        push_lexgion(emap, lgp);
         //printf("lexgion_begin, first lexgion(%d, %X) (first time encountered): %X\n", 0, lgp, codeptr_ra);
         return lgp;
     }
@@ -133,10 +183,11 @@ ompt_lexgion_t * ompt_lexgion_begin(thread_event_map_t * emap, const void * code
     /* search forward from the most recent one */
     for (i=emap->lexgion_recent; i<=emap->lexgion_last_index; i++) {
         if (emap->lexgions[i].codeptr_ra == codeptr_ra) {
-            emap->lexgion_recent = i;
+            emap->lexgion_recent = i; /* cache it for future search */
             lgp = &emap->lexgions[i];
             lgp->total_record++;
             //printf("lexgion_begin(%d, %X): %X, most recent record: %X\n", i, lgp, codeptr_ra, lgp->most_recent);
+            push_lexgion(emap, lgp);
             return lgp;
         }
     }
@@ -146,6 +197,7 @@ ompt_lexgion_t * ompt_lexgion_begin(thread_event_map_t * emap, const void * code
             emap->lexgion_recent = i;
             lgp = &emap->lexgions[i];
             lgp->total_record++;
+            push_lexgion(emap, lgp);
             //printf("lexgion_begin(%d, %X): %X, most recent record: %X\n", i, lgp, codeptr_ra, lgp->most_recent);
             return lgp;
         }
@@ -165,11 +217,7 @@ ompt_lexgion_t * ompt_lexgion_begin(thread_event_map_t * emap, const void * code
         lgp->most_recent = NULL;
         lgp->total_record = 1;
     }
-    return lgp;
-}
-
-ompt_lexgion_t * ompt_lexgion_end(thread_event_map_t * emap) {
-    ompt_lexgion_t * lgp = (ompt_lexgion_t *)emap->lexgion_stack[emap->innermost_lexgion];
+    push_lexgion(emap, lgp);
     return lgp;
 }
 
@@ -197,7 +245,9 @@ static void print_lexgion(int count, thread_event_map_t * emap, ompt_lexgion_t *
     count = 1;
     while (record != NULL) {
         printf("#%d: %d(%d)\t| ", count, record->record_id, record->team_size);
-        ompt_measure_print(&record->measurement, csv_fid);
+        /* measurement data is stored in the end_record, which can be accessed through the match_record index */
+        ompt_trace_record_t * end_record = &emap->records[record->match_record];
+        ompt_measure_print(&end_record->measurement, csv_fid);
         record = record->next;
         count++;
     }
@@ -209,7 +259,7 @@ static void print_lexgion(int count, thread_event_map_t * emap, ompt_lexgion_t *
     printf("==================================================================================================================\n");
 }
 
-void list_past_lexgions(thread_event_map_t * emap) {
+void list_parallel_lexgions(thread_event_map_t *emap) {
     if (emap->lexgion_last_index < 0) return;
     int i;
     printf("==============================================================================================\n");
@@ -222,12 +272,14 @@ void list_past_lexgions(thread_event_map_t * emap) {
     /* search forward from the most recent one */
     for (i=emap->lexgion_recent; i<=emap->lexgion_last_index; i++) {
         ompt_lexgion_t * lgp = &emap->lexgions[i];
-        print_lexgion(++counter, emap, lgp);
+        if (lgp->most_recent->event == ompt_callback_parallel_begin)
+            print_lexgion(++counter, emap, lgp);
     }
     /* search from 0 to most recent one */
     for (i=0; i<emap->lexgion_recent; i++) {
         ompt_lexgion_t * lgp = &emap->lexgions[i];
-        print_lexgion(++counter, emap, lgp);
+        if (lgp->most_recent->event == ompt_callback_parallel_begin)
+            print_lexgion(++counter, emap, lgp);
     }
 }
 
@@ -444,4 +496,54 @@ void ompt_measure_print_header(ompt_measurement_t * me) {
     }
 #endif
     printf("\n");
+}
+
+void ompt_event_maps_to_graphml(thread_event_map_t* maps) {
+
+    const char graphml_filename[] = "OMPTrace.graphml";
+    FILE *graphml_file = fopen(graphml_filename, "w+");
+    /* graphml format //
+    <?xml version="1.0" encoding="UTF-8"?>
+        <graphml xmlns="http://graphml.graphdrawing.org/xmlns"
+            xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+            xsi:schemaLocation="http://graphml.graphdrawing.org/xmlns
+            http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd">
+
+            <graph id="G" edgedefault="directed">
+                <node id="n0"/>
+                <edge source="n0" target="n2"/>
+                <node id="n1"/>
+                <node id="n2"/>
+            </graph>
+        </graphml>
+     */
+    fprintf(graphml_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    fprintf(graphml_file, "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\"\n");
+    fprintf(graphml_file, "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
+    fprintf(graphml_file, "xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">\n");
+    fprintf(graphml_file, "<graph id=\"G\" edgedefault=\"directed\">\n");
+
+    int i;
+    for (i=0; i<MAX_NUM_THREADS; i++) {
+        thread_event_map_t * emap = get_event_map(i);
+        if (i != 0 && emap->thread_id == 0) {/* this is the unused map after the last used one */
+            num_threads = i;
+            break;
+        }
+
+        int j = 0;
+        for (j=0; j<emap->counter; j++) {
+            ompt_trace_record_t * record = get_trace_record_from_emap(emap, j);
+            /* create a graph node for each trace record, we need to create a unqiue node id, set node shape/size and color */
+            fprintf(graphml_file, "<node id=\"%d-%d\"/>\n", i, j); /* record_id should be asserted to be equal to j */
+            if (j > 0) { /* create the direct edge between two consecutive trace record */
+                fprintf(graphml_file, "<edge source=\"%d-%d\" target=\"%d-%d\"/>\n", i, j-1, i, j); /* record_id should be asserted to be equal to j */
+            }
+        }
+    }
+
+    fprintf(graphml_file, "</graph>");
+    fprintf(graphml_file, "</graphml>");
+    fclose(graphml_file);
+
 }

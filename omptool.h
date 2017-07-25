@@ -2,7 +2,7 @@
 #include <ompt.h>
 #include "kmp_hack.h"
 
-#define MAX_NUM_RECORDS 1000000
+#define MAX_NUM_RECORDS 100000000
 #define MAX_NUM_THREADS 512
 #define MAX_NEST_DEPTH 16
 #define MAX_HIST_PARALLEL 16
@@ -76,18 +76,26 @@ typedef struct ompt_measurement {
  * though not all the fields are used for any events
  * For one million records, we will need about 72Mbytes of memory to store
  * the tracing for each thread.
+ *
+ * For each event (short or long), there are normally two record, begin record and end record, linked together through
+ * the @match_record field. The @endpoint field tells whether it is a begin or end record.
+ *
+ * For measurement support enabled, the measured data (exe time, PAPI, power) info are stored in the end record.
  */
 typedef struct ompt_trace_record {
     uint64_t uid;
     ompt_id_t thread_id_inteam;
     int requested_team_size; /* user setting of team size */
     int team_size;      /* the actual team size setting by the runtime/ompt */
-    int event_id;
-    short event_id_additional; /* additional info about the event, e.g. begin event of a callback_idle */
-    ompt_id_t graph_id;
+    int event;
+    int kind;
+    ompt_scope_endpoint_t endpoint; /* begin or end */
     const void *user_frame;
     const void *codeptr_ra;
-    struct ompt_trace_record *next; /* the link of the link list for all the records of the same lexical region */
+    struct ompt_trace_record *parent; /* the record for the lexgion that enclose the lexgion for this record */
+    struct ompt_trace_record *next; /* the link of the link list for all the begin/start records of the same lexical region */
+    struct ompt_lexgion *lgp; /* the innermost parallel lexgion */
+    struct ompt_trace_record *parallel_lgrecord; /* The record for the innermost parellel lexgion that enclose this record */
     ompt_id_t target_id;
 
     int record_id;
@@ -112,6 +120,7 @@ typedef struct ompt_lexgion {
     ompt_trace_record_t * most_recent;
     int total_record; /* total number of records, i.e. totoal number of execution of the same parallel region */
 
+    struct ompt_lexgion * parent; /* the immediately enclosing/parent lexgion */
     ompt_measurement_t accu;
     ompt_measurement_t best;
     int best_counter; /* how many times the configuration for the best measurement has been used */
@@ -128,8 +137,8 @@ typedef struct thread_event_map {
     /* the stack for storing the record indices of the lexgion events.
      * Considering nested region, this has to be stack
      */
-    ompt_lexgion_t *lexgion_stack[MAX_NEST_DEPTH];
-    int innermost_lexgion; /* the index for the begin event of the innermost region, the top of the stack */
+    ompt_lexgion_t *lexgion_stack; /* the top of the stack through out execution, linked via parent field */
+    ompt_trace_record_t * record_stack; /* the top of the stack through out execution, linked through parent field */
 
     ompt_lexgion_t lexgions[MAX_SRC_PARALLELS];
     int lexgion_last_index; /* the last lexgion in the lexgions array */
@@ -145,6 +154,7 @@ extern "C" {
 
 /* this is the array for store all the event tracing records by all the threads */
 extern thread_event_map_t event_maps[];
+extern volatile int num_threads;
 extern ompt_measurement_t total_consumed;
 
 /* handy macro for get pointers to the event_map of a thread, or pointer to a trace record */
@@ -152,6 +162,9 @@ extern ompt_measurement_t total_consumed;
 #define get_trace_record(thread_id, index) (&event_maps[thread_id].records[index])
 #define get_trace_record_from_emap(emap, index) (&emap->records[index])
 #define get_last_lexgion_record(emap) (emap->lexgion_stack[emap->innermost_lexgion]->most_recent)
+
+#define top_record(emap) (emap->record_stack)
+#define top_lexgion(emap) (emap->lexgion_stack)
 
 /* functions for init/fini event map */
 extern thread_event_map_t * init_thread_event_map(int thread_id);
@@ -162,12 +175,14 @@ extern void fini_thread_event_map(int thread_id);
  */
 extern void push_lexgion(thread_event_map_t * emap, ompt_lexgion_t * lexgion);
 extern ompt_lexgion_t * pop_lexgion(thread_event_map_t * emap);
-extern void list_past_lexgions(thread_event_map_t * emap);
+extern void push_record(thread_event_map_t * emap, ompt_trace_record_t * record);
+extern ompt_trace_record_t * pop_record(thread_event_map_t * emap);
+extern void list_parallel_lexgions(thread_event_map_t *emap);
 extern ompt_lexgion_t * ompt_lexgion_begin(thread_event_map_t * emap, const void * codeptr_ra);
-extern ompt_lexgion_t * ompt_lexgion_end(thread_event_map_t * emap);
-extern ompt_trace_record_t * add_trace_record(int thread_id, int event_id, const ompt_frame_t *frame, const void *codeptr_ra);
-extern void add_record_lexgion(ompt_lexgion_t * lgp, ompt_trace_record_t * record);
-extern void link_records(ompt_trace_record_t * begin, ompt_trace_record_t * end);
+extern ompt_trace_record_t *add_trace_record_begin(thread_event_map_t * emap, int event_id, const ompt_frame_t *frame, ompt_lexgion_t *lgp, ompt_trace_record_t *parallel_lgrecord);
+extern ompt_trace_record_t *add_trace_record_end(thread_event_map_t *emap, int event_id, const void *codeptr_ra);
+
+extern void tribute_record_lexgion(ompt_lexgion_t *lgp, ompt_trace_record_t *record);
 
 /**
  * runtime instrumentation API
@@ -184,6 +199,7 @@ extern void ompt_measure_accu(ompt_measurement_t * accu, ompt_measurement_t * me
 extern int ompt_measure_compare(ompt_measurement_t * best, ompt_measurement_t * current);
 extern void ompt_measure_print(ompt_measurement_t * me, FILE * csv_fid);
 extern void ompt_measure_print_header(ompt_measurement_t * me);
+extern void ompt_event_maps_to_graphml(thread_event_map_t* maps);
 
 #ifdef PE_MEASUREMENT_SUPPORT
 /**
