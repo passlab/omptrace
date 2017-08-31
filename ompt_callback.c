@@ -25,6 +25,25 @@ static ompt_get_place_num_t ompt_get_place_num;
 static ompt_get_partition_place_nums_t ompt_get_partition_place_nums;
 static ompt_get_proc_id_t ompt_get_proc_id;
 
+static void print_ids(int level)
+{
+    ompt_frame_t* frame ;
+    ompt_data_t* parallel_data;
+    ompt_data_t* task_data;
+//  int exists_parallel = ompt_get_parallel_info(level, &parallel_data, NULL);
+    int exists_task = ompt_get_task_info(level, NULL, &task_data, &frame, &parallel_data, NULL);
+    if (frame)
+    {
+        printf("%" PRIu64 ": task level %d: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", exit_frame=%p, reenter_frame=%p\n", ompt_get_thread_data()->value, level, exists_task ? parallel_data->value : 0, exists_task ? task_data->value : 0, frame->exit_runtime_frame, frame->reenter_runtime_frame);
+//    printf("%" PRIu64 ": parallel level %d: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", exit_frame=%p, reenter_frame=%p\n", ompt_get_thread_data()->value, level, exists_parallel ? parallel_data->value : 0, exists_task ? task_data->value : 0, frame->exit_runtime_frame, frame->reenter_runtime_frame);
+    }
+    else
+        printf("%" PRIu64 ": task level %d: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", frame=%p\n", ompt_get_thread_data()->value, level, exists_task ? parallel_data->value : 0, exists_task ? task_data->value : 0, frame);
+    //if (__kmp_threads[__kmp_gtid].th.ompt_thread_info.kmp_return_address != NULL)
+    //  printf( "1: return address not reset\n");
+
+}
+
 /*
 #define ompt_callback_idle_spin  9900
 #define ompt_callback_idle_suspend 9900
@@ -66,25 +85,44 @@ on_ompt_callback_sync_region(
     int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
 #ifdef OMPT_TRACING_SUPPORT
-    ompt_trace_record_t * parallel_lgrecord = task_data->ptr;
+    ompt_trace_record_t * parallel_record = task_data->ptr;
 #endif
 
     ompt_trace_record_t *record;
     switch(endpoint)
     {
         case ompt_scope_begin: {
-            ompt_lexgion_t *lgp = ompt_lexgion_begin(emap, codeptr_ra); /* for consolidating all event */
-#ifdef OMPT_TRACING_SUPPORT
-            record = add_trace_record_begin(emap, ompt_callback_sync_region, NULL, lgp, parallel_lgrecord);
-#endif
+            ompt_lexgion_t * lgp;
             switch (kind) {
-                case ompt_sync_region_barrier:
+                case ompt_sync_region_barrier: {
 #ifdef OMPT_TRACING_SUPPORT
+                    ompt_trace_record_t *parallel_record = parallel_data->ptr;
+                    ompt_lexgion_t *parallel_lgp = parallel_record->lgp;
+                    if (codeptr_ra == NULL || parallel_lgp->codeptr_ra == codeptr_ra) {
+                        /* this is the join barrier for the parallel region: if codeptr_ra == NULL: non-master thread;
+                         * if parallel_lgp->codeptr_ra == codeptr_ra: master thread */
+                        lgp = parallel_lgp;
+                        record = add_trace_record_begin(emap, ompt_callback_sync_region, NULL, lgp, task_data->ptr,
+                                                        parallel_record);
+                        ompt_trace_record_t *implicit_task_record = task_data->ptr;
+                        parallel_record->parallel_implicit_barrier_sync[implicit_task_record->thread_id_inteam*OFFSET4FS] = record;
+                        //if (codeptr_ra != NULL) tribute_record_lexgion(lgp, record); /* master thread test */
+                        printf("%" PRIu64 ": ompt_event_join_barrier_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n",
+                               ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
+                    } else { /* other type of barrier, either implicit or explicit */
+                        /* each thread will have a lexgion object for the same lexgion */
+                        lgp = ompt_lexgion_begin(emap, ompt_callback_sync_region, codeptr_ra); /*  */
+                        record = add_trace_record_begin(emap, ompt_callback_sync_region, NULL, lgp, task_data->ptr,
+                                                        parallel_record);
+                        tribute_record_lexgion(lgp, record);
+                        printf("%" PRIu64 ": ompt_event_barrier_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n",
+                               ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
+                    }
                     record->kind = ompt_sync_region_barrier;
 #endif
-                    //printf("%" PRIu64 ": ompt_event_barrier_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
                     //print_ids(0);
                     break;
+                }
                 case ompt_sync_region_taskwait:
 #ifdef OMPT_TRACING_SUPPORT
                     record->kind = ompt_sync_region_taskwait;
@@ -99,16 +137,27 @@ on_ompt_callback_sync_region(
             break;
         }
         case ompt_scope_end: {
-#ifdef OMPT_TRACING_SUPPORT
-            record = add_trace_record_end(emap, ompt_callback_sync_region, codeptr_ra);
-#endif
             switch (kind) {
-                case ompt_sync_region_barrier:
+                case ompt_sync_region_barrier: {
 #ifdef OMPT_TRACING_SUPPORT
+                    ompt_trace_record_t * begin_record = top_record(emap);
+                    record = add_trace_record_end(emap, ompt_callback_sync_region, codeptr_ra);
+                    ompt_trace_record_t *parallel_record = begin_record->parallel_record;
+                    ompt_lexgion_t *parallel_lgp = parallel_record->lgp;
+                    if (codeptr_ra == NULL || parallel_lgp->codeptr_ra == codeptr_ra) {
+                        /* this is the join barrier for the parallel region: if codeptr_ra == NULL: non-master thread;
+                         * if parallel_lgp->codeptr_ra == codeptr_ra: master thread */
+                        printf("%" PRIu64 ": ompt_event_join_barrier_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n",
+                               ompt_get_thread_data()->value, (parallel_data) ? parallel_data->value : 0, task_data->value, codeptr_ra);
+                    } else {
+                        pop_lexgion(emap);
+                        printf("%" PRIu64 ": ompt_event_barrier_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n",
+                               ompt_get_thread_data()->value, (parallel_data) ? parallel_data->value : 0, task_data->value, codeptr_ra);
+                    }
                     record->kind = ompt_sync_region_barrier;
 #endif
-                    //printf("%" PRIu64 ": ompt_event_barrier_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, codeptr_ra);
                     break;
+                }
                 case ompt_sync_region_taskwait:
 #ifdef OMPT_TRACING_SUPPORT
                     record->kind = ompt_sync_region_taskwait;
@@ -120,7 +169,6 @@ on_ompt_callback_sync_region(
 #endif
                     break;
             }
-            pop_lexgion(emap);
             break;
         }
     }
@@ -137,26 +185,41 @@ on_ompt_callback_sync_region_wait(
     int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
 #ifdef OMPT_TRACING_SUPPORT
-    ompt_trace_record_t * parallel_lgrecord = task_data->ptr;
+    ompt_trace_record_t * parallel_record = task_data->ptr;
 #endif
 
     ompt_trace_record_t *record;
     switch(endpoint)
     {
         case ompt_scope_begin: {
-            ompt_lexgion_t *lgp = ompt_lexgion_begin(emap,
-                                                     codeptr_ra); /* for consolidating all event, sync_region and syn_region_wait are merged into one lexgion */
-#ifdef OMPT_TRACING_SUPPORT
-            record = add_trace_record_begin(emap, ompt_callback_sync_region_wait, NULL, lgp, parallel_lgrecord);
-#endif
+            ompt_lexgion_t *lgp;
             switch (kind) {
-                case ompt_sync_region_barrier:
+                case ompt_sync_region_barrier: {
 #ifdef OMPT_TRACING_SUPPORT
+                    ompt_trace_record_t *parallel_record = parallel_data->ptr;
+                    ompt_lexgion_t *parallel_lgp = parallel_record->lgp;
+                    if (codeptr_ra == NULL || parallel_lgp->codeptr_ra == codeptr_ra) {
+                        /* this is the join barrier for the parallel region: if codeptr_ra == NULL: non-master thread;
+                         * if parallel_lgp->codeptr_ra == codeptr_ra: master thread */
+                        lgp = parallel_lgp;
+                        record = add_trace_record_begin(emap, ompt_callback_sync_region_wait, NULL, lgp, task_data->ptr,
+                                                        parallel_record);
+                        ompt_trace_record_t *implicit_task_record = task_data->ptr;
+                        parallel_record->parallel_implicit_barrier_wait[implicit_task_record->thread_id_inteam*OFFSET4FS] = record;
+                        printf("%" PRIu64 ": ompt_event_join_barrier_wait_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n",
+                               ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
+                    } else {
+                        lgp = ompt_lexgion_begin(emap, ompt_callback_sync_region_wait, codeptr_ra); /*  */
+                        record = add_trace_record_begin(emap, ompt_callback_sync_region_wait, NULL, lgp, task_data->ptr, parallel_record);
+                        printf("%" PRIu64 ": ompt_event_barrier_wait_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n",
+                               ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
+                    }
+                    //tribute_record_lexgion(lgp, record);
                     record->kind = ompt_sync_region_barrier;
 #endif
-                    //printf("%" PRIu64 ": ompt_event_barrier_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
                     //print_ids(0);
                     break;
+                }
                 case ompt_sync_region_taskwait:
 #ifdef OMPT_TRACING_SUPPORT
                     record->kind = ompt_sync_region_taskwait;
@@ -171,16 +234,28 @@ on_ompt_callback_sync_region_wait(
             break;
         }
         case ompt_scope_end: {
-#ifdef OMPT_TRACING_SUPPORT
-            record = add_trace_record_end(emap, ompt_callback_sync_region_wait, codeptr_ra);
-#endif
             switch (kind) {
-                case ompt_sync_region_barrier:
+                case ompt_sync_region_barrier: {
 #ifdef OMPT_TRACING_SUPPORT
+                    /* for parallel lexgion, parallel_data may be NULL at this point */
+                    ompt_trace_record_t * begin_record = top_record(emap);
+                    record = add_trace_record_end(emap, ompt_callback_sync_region_wait, codeptr_ra);
+                    ompt_trace_record_t *parallel_record = begin_record->parallel_record;
+                    ompt_lexgion_t *parallel_lgp = parallel_record->lgp;
+                    if (codeptr_ra == NULL || parallel_lgp->codeptr_ra == codeptr_ra) {
+                        /* this is the join barrier for the parallel region: if codeptr_ra == NULL: non-master thread;
+                         * if parallel_lgp->codeptr_ra == codeptr_ra: master thread */
+                        printf("%" PRIu64 ": ompt_event_join_barrier_wait_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n",
+                               ompt_get_thread_data()->value, (parallel_data) ? parallel_data->value : 0, task_data->value, codeptr_ra);
+                    } else {
+                        pop_lexgion(emap);
+                        printf("%" PRIu64 ": ompt_event_barrier_wait_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n",
+                               ompt_get_thread_data()->value, (parallel_data) ? parallel_data->value : 0, task_data->value, codeptr_ra);
+                    }
                     record->kind = ompt_sync_region_barrier;
 #endif
-                    //printf("%" PRIu64 ": ompt_event_barrier_end: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", return_address=%p\n", ompt_get_thread_data()->value, (parallel_data)?parallel_data->value:0, task_data->value, codeptr_ra);
                     break;
+                }
                 case ompt_sync_region_taskwait:
 #ifdef OMPT_TRACING_SUPPORT
                     record->kind = ompt_sync_region_taskwait;
@@ -192,7 +267,6 @@ on_ompt_callback_sync_region_wait(
 #endif
                     break;
             }
-            pop_lexgion(emap);
             break;
         }
     }
@@ -207,9 +281,10 @@ static void on_ompt_callback_idle(
     switch (endpoint) {
         case ompt_scope_begin: {
             const void *frame = NULL; //TODO: FIXME OMPT_GET_FRAME_ADDRESS(0);
-            ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, codeptr_ra); /* consolidate all the idle event */
+            ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, ompt_callback_idle, codeptr_ra); /* consolidate all the idle event */
 #ifdef OMPT_TRACING_SUPPORT
-            ompt_trace_record_t *record = add_trace_record_begin(emap, ompt_callback_idle, frame, lgp, NULL);
+            ompt_trace_record_t *record = add_trace_record_begin(emap, ompt_callback_idle, frame, lgp, NULL, NULL);
+            tribute_record_lexgion(lgp, record);
 #endif
 #ifdef PE_OPTIMIZATION_SUPPORT
             int id = sched_getcpu();
@@ -272,71 +347,121 @@ on_ompt_callback_work(
     int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
 #ifdef OMPT_TRACING_SUPPORT
-    ompt_trace_record_t * parallel_lgrecord = parallel_data->ptr;
+    ompt_trace_record_t * parallel_record = parallel_data->ptr;
+    ompt_trace_record_t * task_record = task_data->ptr;
 #endif
 
     ompt_trace_record_t *record;
     switch(endpoint)
     {
         case ompt_scope_begin: {
-            ompt_lexgion_t *lgp = ompt_lexgion_begin(emap,
-                                                     codeptr_ra); /* for consolidating all event, sync_region and syn_region_wait are merged into one lexgion */
+            ompt_lexgion_t * lgp;
+            switch(wstype)
+            {
+                case ompt_work_loop:
 #ifdef OMPT_TRACING_SUPPORT
-            record = add_trace_record_begin(emap, ompt_callback_sync_region_wait, NULL, lgp, parallel_lgrecord);
+                    /* NOTE: for combined or composite construct such as "parallel for", there are two different lexgions in LLVM OpenMP,
+                     * one for parallel and one for for. Also since this is per-thread callback, each thread will have its own lexgion object created */
+                    lgp = ompt_lexgion_begin(emap, ompt_work_loop, codeptr_ra);
+                    record = add_trace_record_begin(emap, ompt_callback_work, NULL, lgp, task_record, parallel_record);
+                    record->kind = ompt_work_loop;
+                    tribute_record_lexgion(lgp, record);
 #endif
+                    //printf("%" PRIu64 ": ompt_event_loop_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+                    break;
+                case ompt_work_sections:
+                    lgp->type = ompt_work_sections;
+#ifdef OMPT_TRACING_SUPPORT
+                    record->kind = ompt_work_sections;
+#endif
+                    //impl
+                    break;
+                case ompt_work_single_executor:
+#ifdef OMPT_TRACING_SUPPORT
+                    record->kind = ompt_work_single_executor;
+#endif
+                    //printf("%" PRIu64 ": ompt_event_single_in_block_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+                    break;
+                case ompt_work_single_other:
+#ifdef OMPT_TRACING_SUPPORT
+                    record->kind = ompt_work_single_other;
+#endif
+                    //printf("%" PRIu64 ": ompt_event_single_others_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+                    break;
+                case ompt_work_workshare:
+#ifdef OMPT_TRACING_SUPPORT
+                    record->kind = ompt_work_workshare;
+#endif
+                    //impl
+                    break;
+                case ompt_work_distribute:
+#ifdef OMPT_TRACING_SUPPORT
+                    record->kind = ompt_work_distribute;
+#endif
+                    //impl
+                    break;
+                case ompt_work_taskloop:
+#ifdef OMPT_TRACING_SUPPORT
+                    record->kind = ompt_work_taskloop;
+#endif
+                    //impl
+                    break;
+            }
+
             break;
         }
         case ompt_scope_end:
 #ifdef OMPT_TRACING_SUPPORT
             record = add_trace_record_end(emap, ompt_callback_sync_region_wait, codeptr_ra);
 #endif
+            /* for if each thread has its own lexgion object for the same lexgion */
+            //if (task_record->thread_id_inteam != 0)
             pop_lexgion(emap);
-            break;
-    }
-
-    switch(wstype)
-    {
-        case ompt_work_loop:
+            switch(wstype)
+            {
+                case ompt_work_loop:
 #ifdef OMPT_TRACING_SUPPORT
-            record->kind = ompt_work_loop;
+                    record->kind = ompt_work_loop;
 #endif
-            //printf("%" PRIu64 ": ompt_event_loop_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
-            break;
-        case ompt_work_sections:
+                    printf("%" PRIu64 ": ompt_event_loop_end: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+                    break;
+                case ompt_work_sections:
 #ifdef OMPT_TRACING_SUPPORT
-            record->kind = ompt_work_sections;
+                    record->kind = ompt_work_sections;
 #endif
-            //impl
-            break;
-        case ompt_work_single_executor:
+                    //impl
+                    break;
+                case ompt_work_single_executor:
 #ifdef OMPT_TRACING_SUPPORT
-            record->kind = ompt_work_single_executor;
+                    record->kind = ompt_work_single_executor;
 #endif
-            //printf("%" PRIu64 ": ompt_event_single_in_block_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
-            break;
-        case ompt_work_single_other:
+                    //printf("%" PRIu64 ": ompt_event_single_in_block_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+                    break;
+                case ompt_work_single_other:
 #ifdef OMPT_TRACING_SUPPORT
-            record->kind = ompt_work_single_other;
+                    record->kind = ompt_work_single_other;
 #endif
-            //printf("%" PRIu64 ": ompt_event_single_others_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
-            break;
-        case ompt_work_workshare:
+                    //printf("%" PRIu64 ": ompt_event_single_others_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
+                    break;
+                case ompt_work_workshare:
 #ifdef OMPT_TRACING_SUPPORT
-            record->kind = ompt_work_workshare;
+                    record->kind = ompt_work_workshare;
 #endif
-            //impl
-            break;
-        case ompt_work_distribute:
+                    //impl
+                    break;
+                case ompt_work_distribute:
 #ifdef OMPT_TRACING_SUPPORT
-            record->kind = ompt_work_distribute;
+                    record->kind = ompt_work_distribute;
 #endif
-            //impl
-            break;
-        case ompt_work_taskloop:
+                    //impl
+                    break;
+                case ompt_work_taskloop:
 #ifdef OMPT_TRACING_SUPPORT
-            record->kind = ompt_work_taskloop;
+                    record->kind = ompt_work_taskloop;
 #endif
-            //impl
+                    //impl
+                    break;
+            }
             break;
     }
 }
@@ -351,17 +476,17 @@ on_ompt_callback_master(
     int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
 #ifdef OMPT_TRACING_SUPPORT
-    ompt_trace_record_t * parallel_lgrecord = parallel_data->ptr;
+    ompt_trace_record_t * parallel_record = parallel_data->ptr;
 #endif
 
     ompt_trace_record_t *record;
     switch(endpoint)
     {
         case ompt_scope_begin: {
-            ompt_lexgion_t *lgp = ompt_lexgion_begin(emap,
-                                                     codeptr_ra); /* for consolidating all event, sync_region and syn_region_wait are merged into one lexgion */
+            ompt_lexgion_t *lgp = ompt_lexgion_begin(emap, ompt_callback_master, codeptr_ra); /* for consolidating all event, sync_region and syn_region_wait are merged into one lexgion */
 #ifdef OMPT_TRACING_SUPPORT
-            record = add_trace_record_begin(emap, ompt_callback_master, NULL, lgp, parallel_lgrecord);
+            record = add_trace_record_begin(emap, ompt_callback_master, NULL, lgp, task_data->ptr, parallel_record);
+            tribute_record_lexgion(lgp, record);
 #endif
             //printf("%" PRIu64 ": ompt_event_master_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", codeptr_ra=%p\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra);
             break;
@@ -392,7 +517,7 @@ on_ompt_callback_parallel_begin(
     //const void *frame = OMPT_GET_FRAME_ADDRESS(0); /* the frame of the function who calls __kmpc_fork_call */
     int thread_id = get_global_thread_num();
     thread_event_map_t * emap = &event_maps[thread_id];
-    ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, codeptr_ra);
+    ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, ompt_callback_parallel_begin, codeptr_ra);
     int team_size = requested_team_size;
     int diff;
 #ifdef OMPT_MEASUREMENT_SUPPORT
@@ -439,11 +564,19 @@ on_ompt_callback_parallel_begin(
 #endif
 
 #ifdef OMPT_TRACING_SUPPORT
-    ompt_trace_record_t *record = add_trace_record_begin(emap, ompt_callback_parallel_begin, frame, lgp, NULL);
+    ompt_trace_record_t *record = add_trace_record_begin(emap, ompt_callback_parallel_begin, frame, lgp, parent_task_data->ptr, NULL);
+    record->parallel_record = record; /* this is the record for this parallel region. TODO: for nested parallel region */
+    tribute_record_lexgion(lgp, record);
     parallel_data->ptr = record; /* for tracing, the parallel_data->ptr store the actural trace record */
     record->requested_team_size = requested_team_size;
     record->team_size = team_size;
     record->codeptr_ra = codeptr_ra;
+
+    /* init the array for the implicit tasks array */
+    int size = sizeof(ompt_trace_record_t*)*OFFSET4FS*requested_team_size; /* sizes for thread-specific records of this parallel region */
+    record->parallel_implicit_tasks = (ompt_trace_record_t**) malloc(3*size); /* we use one malloc for the three arrays */
+    record->parallel_implicit_barrier_sync = record->parallel_implicit_tasks + size;
+    record->parallel_implicit_barrier_wait = record->parallel_implicit_barrier_sync + size;
 #else
     parallel_data->ptr = lgp; /* store the lexgion as part of the parallel data to pass around */
 #endif
@@ -452,8 +585,9 @@ on_ompt_callback_parallel_begin(
     ompt_measure(&lgp->current);
 #endif
 
-    //printf("Thread: %d parallel begin: FRAME_ADDRESS: %p, LOCATION: %p, exit_runtime_frame: %p, reenter_runtime_frame: %p, codeptr_ra: %p\n",
-    //thread_id, record->user_frame, record->codeptr_ra, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, codeptr_ra);
+   // printf("%d: parallel begin: FRAME_ADDRESS: %p, LOCATION: %p, exit_runtime_frame: %p, reenter_runtime_frame: %p, codeptr_ra: %p\n",
+    //   thread_id, record->user_frame, record->codeptr_ra, parent_task_frame->exit_runtime_frame, parent_task_frame->reenter_runtime_frame, codeptr_ra);
+
     //print_ids(4);
 }
 
@@ -466,11 +600,11 @@ on_ompt_callback_parallel_end(
     int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(thread_id);
     ompt_lexgion_t * lgp;
-    ompt_trace_record_t * parallel_lgrecord;
+    ompt_trace_record_t * parallel_record;
 
 #ifdef OMPT_TRACING_SUPPORT
-    parallel_lgrecord = parallel_data->ptr;
-    lgp = parallel_lgrecord->lgp;
+    parallel_record = parallel_data->ptr;
+    lgp = parallel_record->lgp;
 #else
     lgp = parallel_data->ptr;
 #endif
@@ -526,7 +660,7 @@ on_ompt_callback_implicit_task(
     int thread_id = get_global_thread_num();
     thread_event_map_t * emap = get_event_map(thread_id);
     ompt_lexgion_t * paralel_lgp;
-    ompt_trace_record_t * parallel_lgrecord;
+    ompt_trace_record_t * parallel_record;
     ompt_trace_record_t * record;
     switch(endpoint)
     {
@@ -534,24 +668,32 @@ on_ompt_callback_implicit_task(
             /* in this call back, parallel_data is NULL for ompt_scope_end endpoint, thus to know the parallel_data at the end,
              * we need to pass the needed fields of parallel_data in the scope_begin to the task_data */
             task_data->value = ompt_get_unique_id();
-            task_data->ptr = parallel_data->ptr;
 #ifdef OMPT_TRACING_SUPPORT
-            parallel_lgrecord = task_data->ptr;
-            paralel_lgp = parallel_lgrecord->lgp;
-            record = add_trace_record_begin(emap, ompt_callback_implicit_task, NULL, paralel_lgp, parallel_lgrecord);
+            parallel_record = parallel_data->ptr;
+            paralel_lgp = parallel_record->lgp;
+            record = add_trace_record_begin(emap, ompt_callback_implicit_task, NULL, paralel_lgp, NULL, parallel_record);
+            int thread_num = omp_get_thread_num();
+            record->thread_id_inteam = thread_num;
+            task_data->ptr = record;
+
+            parallel_record->parallel_implicit_tasks[thread_num*OFFSET4FS] = record;
+
+            /* we donot tribute this per-thread event to the parallel lexgion that started by the master thread for several
+             * reasons, e.g. data racing if adding the record to the list, etc */
 #else
-            paralel_lgp = (ompt_lexgion_t *) task_data->ptr;
 #endif
             //printf("%" PRIu64 ": ompt_event_implicit_task_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", team_size=%" PRIu32 ", thread_num=%" PRIu32 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, team_size, thread_num);
             break;
         case ompt_scope_end:
 #ifdef OMPT_TRACING_SUPPORT
-//            parallel_lgrecord = task_data->ptr;
-//            paralel_lgp = parallel_lgrecord->lgp;
+//            parallel_record = task_data->ptr;
+//            paralel_lgp = parallel_record->lgp;
             /* blame shifting, whatever it calls
              * implicit_task_end event may be trigger by the fork_barrier of the following parallel region, e.g. when the thread
              * who reaches a barrier earlier than others and sleeps. Thus the event does not reflect the actual end of the implicit
              * task
+             *
+             * TODO: codeptr_ra pointer is NOT available
              */
             record = add_trace_record_end(emap, ompt_callback_implicit_task, NULL);
 #endif
@@ -559,6 +701,94 @@ on_ompt_callback_implicit_task(
             break;
     }
 }
+
+static void format_task_type(int type, char* buffer)
+{
+    char* progress = buffer;
+    if(type & ompt_task_initial) progress += sprintf(progress, "ompt_task_initial");
+    if(type & ompt_task_implicit) progress += sprintf(progress, "ompt_task_implicit");
+    if(type & ompt_task_explicit) progress += sprintf(progress, "ompt_task_explicit");
+    if(type & ompt_task_target) progress += sprintf(progress, "ompt_task_target");
+    if(type & ompt_task_undeferred) progress += sprintf(progress, "|ompt_task_undeferred");
+    if(type & ompt_task_untied) progress += sprintf(progress, "|ompt_task_untied");
+    if(type & ompt_task_final) progress += sprintf(progress, "|ompt_task_final");
+    if(type & ompt_task_mergeable) progress += sprintf(progress, "|ompt_task_mergeable");
+    if(type & ompt_task_merged) progress += sprintf(progress, "|ompt_task_merged");
+}
+
+static void
+on_ompt_callback_task_create(
+        ompt_data_t *parent_task_data,     /* id of parent task            */
+        const ompt_frame_t *parent_frame,  /* frame data for parent task   */
+        ompt_data_t* new_task_data,        /* id of created task           */
+        int type,
+        int has_dependences,
+        const void *codeptr_ra)               /* pointer to outlined function */
+{
+    int thread_id = get_global_thread_num();
+    thread_event_map_t * emap = get_event_map(thread_id);
+    if(new_task_data->ptr)
+        printf("%s\n", "0: new_task_data initially not null");
+    new_task_data->value = ompt_get_unique_id();
+    ompt_data_t *parallel_data;
+    ompt_get_parallel_info(0, &parallel_data, NULL);
+
+    //there is no paralllel_begin callback for implicit parallel region
+    //thus it is initialized in initial task
+    if(type & ompt_task_initial)
+    {
+        parallel_data->value = ompt_get_unique_id();
+        parallel_data->ptr = NULL; /* so far, we do not have a record for implicit parallel region */
+
+#ifdef OMPT_TRACING_SUPPORT
+        ompt_trace_record_t * initial_task_record = add_trace_record_begin(emap, ompt_callback_task_create,
+                                                                           parent_frame, NULL, NULL, NULL);
+#endif
+    } else {
+        ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, ompt_callback_task_create, codeptr_ra);
+#ifdef OMPT_TRACING_SUPPORT
+        ompt_trace_record_t * record = add_trace_record_begin(emap, ompt_callback_task_create, parent_frame, lgp,
+                                                              parent_task_data->ptr, parallel_data->ptr);
+        tribute_record_lexgion(lgp, record);
+#endif
+
+    }
+
+    //char buffer[2048];
+    //format_task_type(type, buffer);
+    //printf("%" PRIu64 ": ompt_event_task_create: parent_task_id=%" PRIu64 ", parent_task_frame.exit=%p, parent_task_frame.reenter=%p, new_task_id=%" PRIu64 ", parallel_function=%p, task_type=%s=%d, has_dependences=%s\n", ompt_get_thread_data()->value, parent_task_data ? parent_task_data->value : 0, parent_frame ? parent_frame->exit_runtime_frame : NULL, parent_frame ? parent_frame->reenter_runtime_frame : NULL, new_task_data->value, codeptr_ra, buffer, type, has_dependences ? "yes" : "no");
+}
+
+static void
+on_ompt_callback_task_schedule(
+        ompt_data_t *first_task_data,
+        ompt_task_status_t prior_task_status,
+        ompt_data_t *second_task_data)
+{
+    //printf("%" PRIu64 ": ompt_event_task_schedule: first_task_id=%" PRIu64 ", second_task_id=%" PRIu64 ", prior_task_status=%s=%d\n", ompt_get_thread_data()->value, first_task_data->value, second_task_data->value, ompt_task_status_t_values[prior_task_status], prior_task_status);
+    if(prior_task_status == ompt_task_complete)
+    {
+        printf("%" PRIu64 ": ompt_event_task_end: task_id=%" PRIu64 "\n", ompt_get_thread_data()->value, first_task_data->value);
+    }
+}
+
+static void
+on_ompt_callback_task_dependences(
+        ompt_data_t *task_data,
+        const ompt_task_dependence_t *deps,
+        int ndeps)
+{
+    printf("%" PRIu64 ": ompt_event_task_dependences: task_id=%" PRIu64 ", deps=%p, ndeps=%d\n", ompt_get_thread_data()->value, task_data->value, (void *)deps, ndeps);
+}
+
+static void
+on_ompt_callback_task_dependence(
+        ompt_data_t *first_task_data,
+        ompt_data_t *second_task_data)
+{
+    printf("%" PRIu64 ": ompt_event_task_dependence_pair: first_task_id=%" PRIu64 ", second_task_id=%" PRIu64 "\n", ompt_get_thread_data()->value, first_task_data->value, second_task_data->value);
+}
+
 
 static void
 on_ompt_callback_thread_begin(
@@ -568,11 +798,12 @@ on_ompt_callback_thread_begin(
     thread_event_map_t * emap = init_thread_event_map(thread_id);
     const void *codeptr_ra = &on_ompt_callback_thread_begin;
     const void *frame = NULL; //OMPT_GET_FRAME_ADDRESS(0);
-    ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, codeptr_ra);
+    ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, ompt_callback_thread_begin, codeptr_ra);
 #ifdef OMPT_TRACING_SUPPORT
     emap->records = (ompt_trace_record_t *) malloc(sizeof(ompt_trace_record_t) * MAX_NUM_RECORDS);
     /* it is important to note here that this lgp is NOT the parallel lgp */
-    ompt_trace_record_t *record = add_trace_record_begin(emap, ompt_callback_thread_begin, frame, lgp, NULL);
+    ompt_trace_record_t *record = add_trace_record_begin(emap, ompt_callback_thread_begin, frame, lgp, NULL, NULL);
+    tribute_record_lexgion(lgp, record);
     thread_data->ptr = record;
 #else
     thread_data->ptr = lgp;
@@ -599,12 +830,16 @@ on_ompt_callback_thread_end(
     ompt_measure_consume(&emap->thread_total);
 }
 
+char *event_names[1000];
+
 #define register_callback_t(name, type)                       \
 do{                                                           \
   type f_##name = &on_##name;                                 \
   if (ompt_set_callback(name, (ompt_callback_t)f_##name) ==   \
       ompt_set_never)                                         \
     printf("0: Could not register callback '" #name "'\n");   \
+  else                                                        \
+    event_names[name] = #name;                                \
 } while(0)
 
 #define register_callback(name) register_callback_t(name, name##_t)
@@ -617,15 +852,20 @@ int ompt_initialize(
     ompt_get_thread_data = (ompt_get_thread_data_t) lookup("ompt_get_thread_data");
     ompt_get_parallel_info = (ompt_get_parallel_info_t) lookup("ompt_get_parallel_info");
     ompt_get_unique_id = (ompt_get_unique_id_t) lookup("ompt_get_unique_id");
-//    register_callback(ompt_callback_idle);
+    register_callback(ompt_callback_idle);
 //    register_callback(ompt_callback_idle_spin);
 //    register_callback(ompt_callback_idle_suspend);
     register_callback(ompt_callback_sync_region);
-    //register_callback(ompt_callback_sync_region_wait);
     register_callback_t(ompt_callback_sync_region_wait, ompt_callback_sync_region_t);
     register_callback(ompt_callback_parallel_begin);
     register_callback(ompt_callback_parallel_end);
+    register_callback(ompt_callback_work);
+    register_callback(ompt_callback_master);
     register_callback(ompt_callback_implicit_task);
+    register_callback(ompt_callback_task_create);
+    register_callback(ompt_callback_task_schedule);
+    register_callback(ompt_callback_task_dependences);
+    register_callback(ompt_callback_task_dependence);
     register_callback(ompt_callback_thread_begin);
     register_callback(ompt_callback_thread_end);
 #ifdef PE_OPTIMIZATION_SUPPORT
@@ -685,9 +925,9 @@ void ompt_finalize(ompt_fns_t *fns) {
 
 //    int thread_id = get_global_thread_num();
     thread_event_map_t *emap = get_event_map(0);
+    list_parallel_lexgions(emap);
 #ifdef OMPT_TRACING_SUPPORT
 #ifdef OMPT_TRACING_GRAPHML_DUMP
-    list_parallel_lexgions(emap);
     ompt_event_maps_to_graphml(event_maps);
 #endif
 #endif

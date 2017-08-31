@@ -82,6 +82,9 @@ typedef struct ompt_measurement {
  *
  * For measurement support enabled, the measured data (exe time, PAPI, power) info are stored in the end record.
  */
+
+/* padding to eliminate false sharing in an array that will be accessed by multiple thread (one element per thread) */
+#define OFFSET4FS 16
 typedef struct ompt_trace_record {
     uint64_t uid;
     ompt_id_t thread_id_inteam;
@@ -91,11 +94,14 @@ typedef struct ompt_trace_record {
     int kind;
     ompt_scope_endpoint_t endpoint; /* begin or end */
     const void *user_frame;
-    const void *codeptr_ra;
+    const void *codeptr_ra;  /* for *_begin record, codeptr_ra is the same as the lgp codeptr_ra,
+                              * for *_end record, it is the address of the end of lexgion, ideally */
+    struct ompt_lexgion *lgp; /* the lexgion of this record */
     struct ompt_trace_record *parent; /* the record for the lexgion that enclose the lexgion for this record */
+    struct ompt_trace_record *task; /* the record for the enclosing task of this record */
+    struct ompt_trace_record *parallel_record; /* The record for the innermost parellel lexgion that encloses this record */
+
     struct ompt_trace_record *next; /* the link of the link list for all the begin/start records of the same lexical region */
-    struct ompt_lexgion *lgp; /* the innermost parallel lexgion */
-    struct ompt_trace_record *parallel_lgrecord; /* The record for the innermost parellel lexgion that enclose this record */
     ompt_id_t target_id;
 
     int record_id;
@@ -106,16 +112,27 @@ typedef struct ompt_trace_record {
 #if defined(OMPT_TRACING_SUPPORT) && defined(OMPT_MEASUREMENT_SUPPORT)
     ompt_measurement_t measurement;
 #endif
+    struct ompt_trace_record **parallel_implicit_tasks; /* an array for parallel record to store the pointers to all the records of implicit tasks */
+    struct ompt_trace_record **parallel_implicit_barrier_sync; /* the records for sync_barrier_region of all the team threads */
+    struct ompt_trace_record **parallel_implicit_barrier_wait; /* the records for sync_barrier_wait of all the team threads */
 } ompt_trace_record_t;
 
 /**
  * A lexgion (lexical region) represent a region in the source code
- * storing the lexical parallel regions encountered in the runtime */
+ * storing the lexical parallel regions encountered in the runtime.
+ * A lexgion should be identified by the codeptr_ra and the type field together. codeptr_ra is the binary address of the
+ * lexgion and type is the type of region. The reasons we need type for identify a lexgion are:
+ * 1). OpenMP combined and composite construct, e.g. parallel for
+ * 2). implicit barrier, e.g. parallel.
+ * Becasue of that, the events for those constructs may use the same codeptr_ra for the callback, thus we need further
+ * check the type so we know whether we need to create two different lexgion objects
+ * */
 typedef struct ompt_lexgion {
     /* we use the binary address of the lexgion as key for each lexgion, assuming that only one
      * call path of the containing function. This is the limitation since a function may be called from different site,
      * but this seems ok so far
      */
+    int type; /* the type of a lexgion: parallel, master, singer, barrier, task, section, etc. we use trace record event id for this type */
     const void *codeptr_ra;
     ompt_trace_record_t * most_recent;
     int total_record; /* total number of records, i.e. totoal number of execution of the same parallel region */
@@ -178,8 +195,10 @@ extern ompt_lexgion_t * pop_lexgion(thread_event_map_t * emap);
 extern void push_record(thread_event_map_t * emap, ompt_trace_record_t * record);
 extern ompt_trace_record_t * pop_record(thread_event_map_t * emap);
 extern void list_parallel_lexgions(thread_event_map_t *emap);
-extern ompt_lexgion_t * ompt_lexgion_begin(thread_event_map_t * emap, const void * codeptr_ra);
-extern ompt_trace_record_t *add_trace_record_begin(thread_event_map_t * emap, int event_id, const ompt_frame_t *frame, ompt_lexgion_t *lgp, ompt_trace_record_t *parallel_lgrecord);
+extern ompt_lexgion_t *ompt_lexgion_begin(thread_event_map_t *emap, int type, const void *codeptr_ra);
+extern ompt_trace_record_t *
+add_trace_record_begin(thread_event_map_t *emap, int event_id, const ompt_frame_t *frame, ompt_lexgion_t *lgp,
+                       ompt_trace_record_t *task_record, ompt_trace_record_t *parallel_record);
 extern ompt_trace_record_t *add_trace_record_end(thread_event_map_t *emap, int event_id, const void *codeptr_ra);
 
 extern void tribute_record_lexgion(ompt_lexgion_t *lgp, ompt_trace_record_t *record);

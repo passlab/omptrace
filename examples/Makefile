@@ -20,14 +20,26 @@ FEATURES=-DPAPI_MEASUREMENT_SUPPORT=1
 CFLAGS=${FEATURES} -I${OMP_INCLUDE} -L${OMP_LIB_PATH} -L${PAPI_INSTALL}/lib -I${PAPI_INSTALL}/include -lomp -lm -lpapi -g
 LIB_SRC=../cpufreq.c ../pe_measurement.c ../omptool.c ../ompt_callback.c
 
-axpyclang: axpy.c ${LIB_SRC}
-	clang $< ${LIB_SRC} -o $@ -fopenmp ${CFLAGS}
+default:run
+
+axpy:axpy.c
+	clang -fopenmp axpy.c -o axpyclang
+	objdump -d axpyclang >axpyclang.objdump
+
+helloomp:helloomp.c
+	clang -fopenmp $< -o $@
+
+run:axpy
+	LD_PRELOAD=/home/yanyh/tools/omptool/build/libomptool.so ./axpyclang 1024	
+
+# axpyclang: axpy.c ${LIB_SRC}
+#	clang $< ${LIB_SRC} -o $@ -fopenmp ${CFLAGS}
 
 matmul: matmul.c ${LIB_SRC}
 	icc $< ${LIB_SRC} -o $@ -openmp ${CFLAGS} -DPE_MEASUREMENT_SUPPORT=1 -par-affinity=warnings,granularity=thread,proclist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71],explicit
 
-axpy: axpy.c ${LIB_SRC}
-	icc $< ${LIB_SRC} -o $@ -openmp ${CFLAGS} -DPE_MEASUREMENT_SUPPORT=1 -par-affinity=warnings,granularity=thread,proclist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71],explicit
+# axpy: axpy.c ${LIB_SRC}
+#	icc $< ${LIB_SRC} -o $@ -openmp ${CFLAGS} -DPE_MEASUREMENT_SUPPORT=1 -par-affinity=warnings,granularity=thread,proclist=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71],explicit
 
 clean:
 	rm -rf axpy matmul axpyclang
