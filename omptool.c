@@ -46,7 +46,7 @@ int PAPI_Events[NUM_PAPI_EVENTS]={PAPI_TOT_INS, PAPI_TOT_CYC, PAPI_L1_DCM};
 thread_event_map_t * init_thread_event_map(int thread_id) {
     thread_event_map_t *emap = get_event_map(thread_id);
     emap->thread_id = thread_id;
-    emap->counter = -1;
+    emap->counter = 0;
     emap->lexgion_last_index = -2;
     emap->lexgion_recent = -1;
     emap->records = NULL;
@@ -93,7 +93,6 @@ void tribute_record_lexgion(ompt_lexgion_t *lgp, ompt_trace_record_t *rd) {
 ompt_trace_record_t *
 add_trace_record_begin(thread_event_map_t *emap, int event_id, const ompt_frame_t *frame, ompt_lexgion_t *lgp,
                        ompt_trace_record_t *task_record, ompt_trace_record_t *parallel_record) {
-    emap->counter++;
     int counter = emap->counter;
     ompt_trace_record_t *rd = get_trace_record_from_emap(emap, counter);
     rd->record_id = counter;
@@ -104,7 +103,7 @@ add_trace_record_begin(thread_event_map_t *emap, int event_id, const ompt_frame_
     rd->task = task_record;
     rd->parent = top_record(emap);
 
-    rd->uid = (((uint64_t) emap->thread_id) << 4) + emap->counter;
+    rd->thread_id = emap->thread_id;
     rd->match_record = -1;
     //printf("Add trace record: %d\n", counter);
 
@@ -113,12 +112,12 @@ add_trace_record_begin(thread_event_map_t *emap, int event_id, const ompt_frame_
 
     /* push to the record stack */
     push_record(emap, rd);
+    emap->counter++;
 
     return rd;
 }
 
 ompt_trace_record_t *add_trace_record_end(thread_event_map_t *emap, int event_id, const void *codeptr_ra) {
-    emap->counter++;
     int counter = emap->counter;
     ompt_trace_record_t *rd = get_trace_record_from_emap(emap, counter);
     rd->record_id = counter;
@@ -131,7 +130,7 @@ ompt_trace_record_t *add_trace_record_end(thread_event_map_t *emap, int event_id
     rd->lgp = begin_record->lgp;
     rd->parallel_record = begin_record->parallel_record;
 
-    rd->uid = (((uint64_t)emap->thread_id) << 4)  + emap->counter;
+    rd->thread_id = emap->thread_id;
     //printf("Add trace record: %d\n", counter);
     /* pop record stack */
     pop_record(emap);
@@ -140,6 +139,7 @@ ompt_trace_record_t *add_trace_record_end(thread_event_map_t *emap, int event_id
     begin_record->match_record = counter;
     rd->match_record = begin_record->record_id;
 
+    emap->counter++;
     return rd;
 }
 
@@ -507,7 +507,66 @@ void ompt_measure_print_header(ompt_measurement_t * me) {
     printf("\n");
 }
 
+typedef struct graphml_node {
+    char * Name;
+    char * Shape;
+    char * Color;
+
+    char * BorderColor;
+    char * BorderType;
+    char * BorderWidth;
+} graphml_node_graphics_t;
+
+graphml_node_graphics_t graphml_event_node_graphics[64];
+
+#define SET_EVENT_NODE_GRAPHICS(event, shape, color, borderColor, borderType, borderWidth) \
+    graphml_event_node_graphics[event].Name = #event; \
+    graphml_event_node_graphics[event].Shape = #shape; \
+    graphml_event_node_graphics[event].Color = #color; \
+    graphml_event_node_graphics[event].BorderColor = #borderColor; \
+    graphml_event_node_graphics[event].BorderType = #borderType; \
+    graphml_event_node_graphics[event].BorderWidth = #borderWidth;
+
+#define SET_EVENT_NODE_GRAPHICS_DEFAULT_BORDER(event, shape, color) \
+    graphml_event_node_graphics[event].Name = #event; \
+    graphml_event_node_graphics[event].Shape = shape; \
+    graphml_event_node_graphics[event].Color = color; \
+    graphml_event_node_graphics[event].BorderColor = "#000000"; \
+    graphml_event_node_graphics[event].BorderType = "line"; \
+    graphml_event_node_graphics[event].BorderWidth = "1.0";
+
+#define EVENT_NODE_GRAPHICS_LABELNAME(event) \
+    graphml_event_node_graphics[event].Name
+
+#define EVENT_NODE_GRAPHICS_SHAPE(event) \
+    graphml_event_node_graphics[event].Shape
+
+#define EVENT_NODE_GRAPHICS_COLOR(event) \
+    graphml_event_node_graphics[event].Color
+
+#define EVENT_NODE_GRAPHICS_BORDERCOLOR(event) \
+    graphml_event_node_graphics[event].BorderColor
+
+#define EVENT_NODE_GRAPHICS_BORDERTYPE(event) \
+    graphml_event_node_graphics[event].BorderType
+
+#define EVENT_NODE_GRAPHICS_BORDERWIDTH(event) \
+    graphml_event_node_graphics[event].BorderWidth
+
+
 void ompt_event_maps_to_graphml(thread_event_map_t* maps) {
+
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_thread_begin,     ellipse,          #99CCFF, #000000, line, 1.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_thread_end,       ellipse,          #99CCFF, #000000, line, 4.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_parallel_begin,   rectangle,        #00FF00, #000000, line, 6.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_parallel_end,     rectangle,        #00FF00, #000000, line, 6.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_task_create,      roundrectangle,   #00CC11, #000000, line, 1.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_implicit_task,    roundrectangle,   #00CC11, #000000, line, 1.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_master,           roundrectangle,   #99CCFF, #000000, line, 1.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_work,             roundrectangle,   #99CC11, #000000, line, 1.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_idle,             roundrectangle,   #FFFF00, #000000, line, 1.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_sync_region,      roundrectangle,   #FF0000, #000000, line, 1.0);
+    SET_EVENT_NODE_GRAPHICS(ompt_callback_sync_region_wait, roundrectangle,   #FF0000, #000000, line, 1.0);
 
     const char graphml_filename[] = "OMPTrace.graphml";
     FILE *graphml_file = fopen(graphml_filename, "w+");
@@ -526,11 +585,36 @@ void ompt_event_maps_to_graphml(thread_event_map_t* maps) {
             </graph>
         </graphml>
      */
-    fprintf(graphml_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
-    fprintf(graphml_file, "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\"\n");
-    fprintf(graphml_file, "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
-    fprintf(graphml_file, "xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">\n");
-    fprintf(graphml_file, "<graph id=\"G\" edgedefault=\"directed\">\n");
+ //   fprintf(graphml_file, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+ //   fprintf(graphml_file, "<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\"\n");
+ //   fprintf(graphml_file, "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n");
+ //   fprintf(graphml_file, "xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns http://graphml.graphdrawing.org/xmlns/1.0/graphml.xsd\">\n");
+
+    char * indent = "\t";
+    fprintf(graphml_file,"<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"no\"?>\n");
+    fprintf(graphml_file,"<graphml xmlns=\"http://graphml.graphdrawing.org/xmlns\" "
+            "xmlns:java=\"http://www.yworks.com/xml/yfiles-common/1.0/java\" "
+            "xmlns:sys=\"http://www.yworks.com/xml/yfiles-common/markup/primitives/2.0\" "
+            "xmlns:x=\"http://www.yworks.com/xml/yfiles-common/markup/2.0\" "
+            "xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" "
+            "xmlns:y=\"http://www.yworks.com/xml/graphml\" xmlns:yed=\"http://www.yworks.com/xml/yed/3\" "
+            "xsi:schemaLocation=\"http://graphml.graphdrawing.org/xmlns "
+            "http://www.yworks.com/xml/schema/graphml/1.1/ygraphml.xsd\">\n");
+    fprintf(graphml_file, "\t<key for=\"port\" id=\"d0\" yfiles.type=\"portgraphics\"/>\n");
+    fprintf(graphml_file, "\t<key for=\"port\" id=\"d1\" yfiles.type=\"portgeometry\"/>\n");
+    fprintf(graphml_file, "\t<key for=\"port\" id=\"d2\" yfiles.type=\"portuserdata\"/>\n");
+    fprintf(graphml_file, "\t<key attr.name=\"color\" attr.type=\"string\" for=\"node\" id=\"d3\">\n");
+    fprintf(graphml_file, "\t\t<default><![CDATA[yellow]]></default>\n");
+    fprintf(graphml_file, "\t</key>\n");
+    fprintf(graphml_file, "\t<key attr.name=\"url\" attr.type=\"string\" for=\"node\" id=\"d4\"/>\n");
+    fprintf(graphml_file, "\t<key attr.name=\"description\" attr.type=\"string\" for=\"node\" id=\"d5\"/>\n");
+    fprintf(graphml_file, "\t<key for=\"node\" id=\"d6\" yfiles.type=\"nodegraphics\"/>\n");
+    fprintf(graphml_file, "\t<key for=\"graphml\" id=\"d7\" yfiles.type=\"resources\"/>\n");
+    fprintf(graphml_file, "\t<key attr.name=\"weight\" attr.type=\"double\" for=\"edge\" id=\"d8\"/>\n");
+    fprintf(graphml_file, "\t<key attr.name=\"url\" attr.type=\"string\" for=\"edge\" id=\"d9\"/>\n");
+    fprintf(graphml_file, "\t<key attr.name=\"description\" attr.type=\"string\" for=\"edge\" id=\"d10\"/>\n");
+    fprintf(graphml_file, "\t<key for=\"edge\" id=\"d11\" yfiles.type=\"edgegraphics\"/>\n");
+    fprintf(graphml_file, "\t<graph id=\"G\" edgedefault=\"directed\">\n");
 
     int i;
     for (i=0; i<MAX_NUM_THREADS; i++) {
@@ -544,9 +628,73 @@ void ompt_event_maps_to_graphml(thread_event_map_t* maps) {
         for (j=0; j<emap->counter; j++) {
             ompt_trace_record_t * record = get_trace_record_from_emap(emap, j);
             /* create a graph node for each trace record, we need to create a unqiue node id, set node shape/size and color */
-            fprintf(graphml_file, "<node id=\"%d-%d\"/>\n", i, j); /* record_id should be asserted to be equal to j */
+            fprintf(graphml_file, "%s\t<node id=\"%d-%d\">\n", indent, i, j); /* record_id should be asserted to be equal to j */
+
+            if (i != record->thread_id || j != record->record_id) {
+                printf("record mismatch with thread_id and record_id\n");
+            }
+            fprintf(graphml_file, "%s\t\t<data key=\"d6\">\n", indent);
+            //fprintf(graphml_file, "%s\t\t\t<y:GenericNode configuration=\"ShinyPlateNode3\">\n", indent);
+            fprintf(graphml_file, "%s\t\t\t<y:ShapeNode>\n", indent);
+            fprintf(graphml_file, "%s\t\t\t\t<y:Geometry height=\"25.0\" width=\"50.0\" x=\"659.0\" y=\"233.0\"/>\n", indent);
+
+            fprintf(graphml_file, "%s\t\t\t\t<y:Fill color=\"%s\" transparent=\"false\"/>\n", indent,
+                    EVENT_NODE_GRAPHICS_COLOR(record->event));
+            fprintf(graphml_file, "%s\t\t\t\t<y:BorderStyle color=\"%s\" type=\"%s\" width=\"%s\"/>\n", indent,
+                    EVENT_NODE_GRAPHICS_BORDERCOLOR(record->event),
+                    EVENT_NODE_GRAPHICS_BORDERTYPE(record->event),
+                    EVENT_NODE_GRAPHICS_BORDERWIDTH(record->event));
+            /* for the label */
+            fprintf(graphml_file, "%s\t\t\t\t<y:NodeLabel "
+                    "alignment=\"center\" autoSizePolicy=\"content\" "
+                    "fontFamily=\"Dialog\" fontSize=\"12\" fontStyle=\"plain\" "
+                    "hasBackgroundColor=\"false\" hasLineColor=\"false\" "
+                    "height=\"17.96875\" horizontalTextPosition=\"center\" iconTextGap=\"4\" modelName=\"custom\" "
+                    "textColor=\"#000000\" verticalTextPosition=\"bottom\" visible=\"true\" "
+                    "width=\"70.171875\" x=\"42.9140625\" y=\"28.015625\">\n", indent);
+            /* the label text itself */
+            if (record->codeptr_ra != NULL) {
+                fprintf(graphml_file, "%s\t\t\t\t\t%s:%p[%d-%d]\n", indent,
+                        EVENT_NODE_GRAPHICS_LABELNAME(record->event),
+                        record->codeptr_ra, i, j);
+            } else {
+                fprintf(graphml_file, "%s\t\t\t\t\t%s[%d-%d]\n", indent,
+                        EVENT_NODE_GRAPHICS_LABELNAME(record->event), i, j);
+            }
+            fprintf(graphml_file, "%s\t\t\t\t\t<y:LabelModel>\n", indent);
+            fprintf(graphml_file, "%s\t\t\t\t\t\t<y:SmartNodeLabelModel distance=\"4.0\"/>\n", indent);
+            fprintf(graphml_file, "%s\t\t\t\t\t</y:LabelModel>\n", indent);
+
+            fprintf(graphml_file, "%s\t\t\t\t\t<y:ModelParameter>\n", indent);
+            fprintf(graphml_file, "%s\t\t\t\t\t\t<y:SmartNodeLabelModelParameter "
+                    "labelRatioX=\"0.0\" labelRatioY=\"0.0\" "
+                    "nodeRatioX=\"0.0\" nodeRatioY=\"0.0\" "
+                    "offsetX=\"0.0\" offsetY=\"0.0\" "
+                    "upX=\"0.0\" upY=\"-1.0\"/>\n", indent);
+            fprintf(graphml_file, "%s\t\t\t\t\t</y:ModelParameter>\n", indent);
+
+            fprintf(graphml_file, "%s\t\t\t\t</y:NodeLabel>\n", indent);
+//            fprintf(graphml_file, "%s\t\t\t\t<y:Shape type=\"rectangle\"/>\n", indent);
+            fprintf(graphml_file, "%s\t\t\t\t<y:Shape type=\"%s\"/>\n", indent,
+                    EVENT_NODE_GRAPHICS_SHAPE(record->event));
+
+            fprintf(graphml_file, "%s\t\t\t</y:ShapeNode>\n", indent);
+            //fprintf(graphml_file, "%s\t\t\t</y:GenericNode>\n", indent);
+            fprintf(graphml_file, "%s\t\t</data>\n", indent);
+            fprintf(graphml_file, "%s\t</node>\n", indent);
+
+
             if (j > 0) { /* create the direct edge between two consecutive trace record */
-                fprintf(graphml_file, "<edge source=\"%d-%d\" target=\"%d-%d\"/>\n", i, j-1, i, j); /* record_id should be asserted to be equal to j */
+                fprintf(graphml_file, "%s\t<edge source=\"%d-%d\" target=\"%d-%d\"/>\n", indent, i, j-1, i, j); /* record_id should be asserted to be equal to j */
+            }
+
+            if (record->event == ompt_callback_parallel_begin) {
+                int k;
+                for (k=0; k<record->team_size; k++) {
+                    ompt_trace_record_t * implicit_task_record = record->parallel_implicit_tasks[k*OFFSET4FS];
+                    fprintf(graphml_file, "%s\t<edge source=\"%d-%d\" target=\"%d-%d\"/>\n", indent, i, j, implicit_task_record->thread_id, implicit_task_record->record_id);
+                    fprintf(graphml_file, "%s\t<edge source=\"%d-%d\" target=\"%d-%d\"/>\n", indent, implicit_task_record->thread_id, implicit_task_record->match_record, i, record->match_record);
+                }
             }
         }
     }

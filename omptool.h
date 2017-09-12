@@ -2,12 +2,12 @@
 #include <ompt.h>
 #include "kmp_hack.h"
 
-#define MAX_NUM_RECORDS 100000000
-#define MAX_NUM_THREADS 512
+#define MAX_NUM_RECORDS 10000000
+#define MAX_NUM_THREADS 64
 #define MAX_NEST_DEPTH 16
 #define MAX_HIST_PARALLEL 16
 /* the max number of parallel regions in the original source code */
-#define MAX_SRC_PARALLELS 128
+#define MAX_SRC_PARALLELS 64
 #define MAX_NUM_PACKAGES 16
 
 /**
@@ -86,7 +86,7 @@ typedef struct ompt_measurement {
 /* padding to eliminate false sharing in an array that will be accessed by multiple thread (one element per thread) */
 #define OFFSET4FS 16
 typedef struct ompt_trace_record {
-    uint64_t uid;
+    int thread_id;
     ompt_id_t thread_id_inteam;
     int requested_team_size; /* user setting of team size */
     int team_size;      /* the actual team size setting by the runtime/ompt */

@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
     memcpy(Y_parallel, Y_base, N * sizeof(REAL));
 
     int i;
-    int num_runs = 1; 
+    int num_runs = 10; 
   
     double elapsed_omp_parallel_for = read_timer();
     for (i=0; i<num_runs; i++) {
