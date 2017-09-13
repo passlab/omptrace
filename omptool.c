@@ -507,6 +507,7 @@ void ompt_measure_print_header(ompt_measurement_t * me) {
     printf("\n");
 }
 
+#ifdef OMPT_TRACING_GRAPHML_DUMP
 typedef struct graphml_node {
     char * Name;
     char * Shape;
@@ -704,3 +705,4 @@ void ompt_event_maps_to_graphml(thread_event_map_t* maps) {
     fclose(graphml_file);
 
 }
+#endif
