@@ -8,7 +8,7 @@
   1. clone the repo and checkout the branch (standalone or in the llvm/clang source tree)
    
            git clone https://github.com/OpenMPToolsInterface/LLVM-openmp openmp
-	   cd openmp
+           cd openmp
            git remote update
            git checkout -b towards_tr4
            
