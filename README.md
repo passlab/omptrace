@@ -16,12 +16,12 @@
     
            mkdir BUILD
            cd BUILD
-           cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=on -DLIBOMP_OMPT_TRACE=on -DLIBOMP_USE_HWLOC=on -DLIBOMP_HWLOC_INSTALL_DIR=/opt/hwloc-1.11.2-install -DCMAKE_INSTALL_PREFIX=<install_path> ..
+           cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=on -DLIBOMP_OMPT_TRACE=on -DCMAKE_INSTALL_PREFIX=<install_path> ..
            make; make install
            
       For using other compiler (on fornax), CC and CXX should be set for cmake. For example, on fornax as standalone: 
       
-           CC=/opt/gcc-5.3.0-install/bin/gcc CXX=/opt/gcc-5.3.0-install/bin/g++ cmake -DLIBOMP_OMPT_SUPPORT=on -DLIBOMP_OMPT_TRACE=on -DLIBOMP_USE_HWLOC=on -DLIBOMP_HWLOC_INSTALL_DIR=/opt/hwloc-1.11.2-install -DCMAKE_INSTALL_PREFIX=<install_path> ..
+           CC=/opt/gcc-5.3.0-install/bin/gcc CXX=/opt/gcc-5.3.0-install/bin/g++ cmake -DLIBOMP_OMPT_SUPPORT=on -DLIBOMP_OMPT_TRACE=on -DCMAKE_INSTALL_PREFIX=<install_path> ..
            
   1. location for header files (omp.h and ompt.h) and libomp.so library are `<install_path>/include` and `<install_path>/lib` if the runtime is installed standalone. If it is installed as part of clang/llvm, the header location is `<install_path>/lib/clang/5.0.0/include`, and the libomp.so is from `<install_path>/lib`. Setup the library path for execution by letting LD_LIBRARY_PATH env include the lib path. For development and compiling, you need to provide the header path and lib path to the -I and -L flags of the compiler.
 
