@@ -10,7 +10,7 @@
            git clone https://github.com/OpenMPToolsInterface/LLVM-openmp openmp
            cd openmp
            git remote update
-           git checkout -b towards_tr4
+           git checkout -t origin/towards_tr4
            
   1. cmake to create the makefile with OMPT_SUPPORT abled, make it and install it (as of 2017/03/09, only version 45 is supported even the latest offcial runtime set 50 as default, which is happening after we merge, so we need to do -DLIBOMP_OMP_VERSION=45 in cmake)
     
