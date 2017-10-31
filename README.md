@@ -48,6 +48,7 @@ An application (either in omptool/examples or others such as Lulesh or SPECOMP) 
     cd omptools/examples
     clang -fopenmp axpy.c -o axpyclang  # or icc -fopenmp axpy.c -o axpyicc
     export LD_LIBRARY_PATH=/home/yan/tools/llvm-openmp/BUILD/runtime/src:$LD_LIBRARY_PATH
+    ldd axpyclang # to check whether it will load the libomp.so in the folder we set in LD_LIBRARY_PATH
     LD_PRELOAD=/home/yan/tools/omptool/build/libomptool.so ./axpyclang 1024
 
 ## Reference and Documentation for OMPT and Visualization
