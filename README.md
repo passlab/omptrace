@@ -59,7 +59,7 @@ testing of the callback of OMPT, you can check the Makefile in the folder and it
     cd omptool/examples/simple
     make run
 
-Try omptools/examples/axpy.c
+Try omptool/examples/axpy.c
     
     cd omptool/examples
     clang -fopenmp axpy.c -o axpyclang  # or icc -fopenmp axpy.c -o axpyicc
