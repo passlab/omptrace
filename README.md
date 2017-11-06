@@ -53,7 +53,7 @@
 ## Experiment
 An application (either in omptool/examples or others such as Lulesh or SPECOMP) needs to be built with either icc or clang in order to use the LLVM OpenMP runtime. In our case, it is the OMPT-enabled LLVM OpenMP runtime. 
 
-A simple example in [examples/simple](examples/simple), which does not depend on the omptools implementation, is provided for simple 
+A simple example in [examples/simple](examples/simple), which does not depend on the omptool (this repo) implementation, is provided for simple 
 testing of the callback of OMPT, you can check the Makefile in the folder and it is simple to follow and modify to test your env setting
 
     cd omptool/examples/simple
