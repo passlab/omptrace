@@ -4,8 +4,8 @@
 ## Prerequisite and Installation
 1. OpenMP implementation that supports OMPT interface, which is the llvm OpenMP runtime (https://git.llvm.org/git/openmp.git/)
     
-### Installation of the the towards_tr4 branch, which support OMPT, either as standalone or with llvm/clang compiler. 
-  1. clone the repo and checkout the branch (standalone or in the llvm/clang source tree)
+### Installation of the LLVM OpenMP runtime, either as standalone or with llvm/clang compiler. The instructions below are for standalone and no installation. 
+  1. clone the repo and checkout the branch
    
            git clone https://git.llvm.org/git/openmp.git/
            cd openmp
@@ -15,7 +15,7 @@
            mkdir BUILD
            cd BUILD
            cmake -G "Unix Makefiles" -DLIBOMP_OMPT_SUPPORT=on ..
-           make; make install
+           make
            
       For using other compiler (on fornax), CC and CXX should be set for cmake. For example, on fornax as standalone: 
       
@@ -38,6 +38,7 @@
     cd omptool; 
 
  Modify the CMakeList.txt file to let the following variables point to the right location of OMPT-enabled runtime installation and PAPI. See below for the setting on fornax: 
+ 
 ~~~~
     set(OMP_STANDALONE_INSTALL /home/yan/tools/llvm-openmp/BUILD/runtime/src)
     set(OMP_LIB_PATH ${OMP_STANDALONE_INSTALL})
@@ -52,15 +53,15 @@
 ## Experiment
 An application (either in omptool/examples or others such as Lulesh or SPECOMP) needs to be built with either icc or clang in order to use the LLVM OpenMP runtime. In our case, it is the OMPT-enabled LLVM OpenMP runtime. 
 
-A simple example in [examples/simple](examples/simple), which does not depend on the omptools implementation, is provided for simple 
+A simple example in [examples/simple](examples/simple), which does not depend on the omptool (this repo) implementation, is provided for simple 
 testing of the callback of OMPT, you can check the Makefile in the folder and it is simple to follow and modify to test your env setting
 
-    cd omptools/examples/simple
+    cd omptool/examples/simple
     make run
 
-Try omptools/examples/axpy.c
+Try omptool/examples/axpy.c
     
-    cd omptools/examples
+    cd omptool/examples
     clang -fopenmp axpy.c -o axpyclang  # or icc -fopenmp axpy.c -o axpyicc
     export LD_LIBRARY_PATH=/home/yanyh/tools/llvm-openmp/BUILD/runtime/src:$LD_LIBRARY_PATH
     ldd axpyclang # to check whether it will load the libomp.so in the folder we set in LD_LIBRARY_PATH
