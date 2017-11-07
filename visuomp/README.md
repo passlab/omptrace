@@ -12,3 +12,6 @@
  * Study the developer guide and browse source code for the development
  * Eclipse plugin tutorial (http://www.vogella.com/tutorials/EclipsePlugin/article.html)
 
+ ### Screenshot
+ ![Lulesh tracing and visualization with Tracecompass](OMPT_LTTng_TraceCompass.png)
+ 
