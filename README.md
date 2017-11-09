@@ -29,6 +29,14 @@
 
      In any case, you need to setup the library path for execution by letting LD_LIBRARY_PATH env include the lib path. 
      For development and compiling, you need to provide the header path and lib path to the -I and -L flags of the compiler.
+     
+     For installing Clang/LLVM/OpenMP together, the following cmake configuration has shown to be working, particularly by reduing the
+     memory usage for linking clang/llvm objects:
+     
+     `cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DLLVM_USE_LINKER=gold -DCMAKE_INSTALL_PREFIX=/home/yanyh/ompllvm/llvm-official-install -DLIBOMP_OMPT_SUPPORT=on /home/yanyh/ompllvm/llvm-official`
+     
+     `Release` build, compared to the default `Debug` build, reduces object sizes, thus reducing linking memory. `gold` was also
+     mentioned in several places for being better than `ld`
 
 ## Building omptool
 
