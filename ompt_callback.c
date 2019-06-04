@@ -9,6 +9,7 @@
 #include <inttypes.h>
 #include <omp.h>
 #include <ompt.h>
+#include <string.h>
 #include "omptool.h"
 
 static const char* ompt_thread_t_values[] = {
@@ -466,16 +467,20 @@ on_ompt_callback_work(
     {
         case ompt_scope_begin: {
             ompt_lexgion_t * lgp;
+#ifdef OMPT_TRACING_SUPPORT
+            /* NOTE: for combined or composite construct such as "parallel for", there are two different lexgions in LLVM OpenMP,
+             * one for parallel and one for for. Also since this is per-thread callback, each thread will have its
+             * own lexgion object created
+             */
+            lgp = ompt_lexgion_begin(emap, ompt_work_loop, codeptr_ra);
+            record = add_trace_record_begin(emap, ompt_callback_work, NULL, lgp, task_record, parallel_record);
+            tribute_record_lexgion(lgp, record);
+#endif
             switch(wstype)
             {
                 case ompt_work_loop:
 #ifdef OMPT_TRACING_SUPPORT
-                    /* NOTE: for combined or composite construct such as "parallel for", there are two different lexgions in LLVM OpenMP,
-                     * one for parallel and one for for. Also since this is per-thread callback, each thread will have its own lexgion object created */
-                    lgp = ompt_lexgion_begin(emap, ompt_work_loop, codeptr_ra);
-                    record = add_trace_record_begin(emap, ompt_callback_work, NULL, lgp, task_record, parallel_record);
                     record->kind = ompt_work_loop;
-                    tribute_record_lexgion(lgp, record);
 #endif
                     //printf("%" PRIu64 ": ompt_event_loop_begin: parallel_id=%" PRIu64 ", parent_task_id=%" PRIu64 ", workshare_function=%p, count=%" PRIu64 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, codeptr_ra, count);
                     break;
@@ -798,7 +803,8 @@ on_ompt_callback_implicit_task(
         ompt_data_t *parallel_data,
         ompt_data_t *task_data,
         unsigned int team_size,
-        unsigned int thread_num)
+        unsigned int thread_num,
+        int flags)
 {
     int thread_id = get_global_thread_num();
     thread_event_map_t * emap = get_event_map(thread_id);
@@ -811,6 +817,10 @@ on_ompt_callback_implicit_task(
             /* in this call back, parallel_data is NULL for ompt_scope_end endpoint, thus to know the parallel_data at the end,
              * we need to pass the needed fields of parallel_data in the scope_begin to the task_data */
             task_data->value = ompt_get_unique_id();
+            if(flags & ompt_task_initial) {
+                parallel_data->value = ompt_get_unique_id();
+                return;
+            }
 #ifdef OMPT_TRACING_SUPPORT
             parallel_record = parallel_data->ptr;
             paralel_lgp = parallel_record->lgp;
@@ -828,6 +838,9 @@ on_ompt_callback_implicit_task(
             //printf("%" PRIu64 ": ompt_event_implicit_task_begin: parallel_id=%" PRIu64 ", task_id=%" PRIu64 ", team_size=%" PRIu32 ", thread_num=%" PRIu32 "\n", ompt_get_thread_data()->value, parallel_data->value, task_data->value, team_size, thread_num);
             break;
         case ompt_scope_end:
+            if(flags & ompt_task_initial){
+                return;
+            }
 #ifdef OMPT_TRACING_SUPPORT
 //            parallel_record = task_data->ptr;
 //            paralel_lgp = parallel_record->lgp;
@@ -968,7 +981,7 @@ on_ompt_callback_control_tool(
 {
     ompt_frame_t* omptTaskFrame;
     ompt_get_task_info(0, NULL, (ompt_data_t**) NULL, &omptTaskFrame, NULL, NULL);
-    printf("%" PRIu64 ": ompt_event_control_tool: command=%" PRIu64 ", modifier=%" PRIu64 ", arg=%p, codeptr_ra=%p, current_task_frame.exit=%p, current_task_frame.reenter=%p \n", ompt_get_thread_data()->value, command, modifier, arg, codeptr_ra, omptTaskFrame->exit_frame, omptTaskFrame->enter_frame);
+    //printf("%" PRIu64 ": ompt_event_control_tool: command=%" PRIu64 ", modifier=%" PRIu64 ", arg=%p, codeptr_ra=%p, current_task_frame.exit=%p, current_task_frame.reenter=%p \n", ompt_get_thread_data()->value, command, modifier, arg, codeptr_ra, omptTaskFrame->exit_frame, omptTaskFrame->enter_frame);
     return 0; //success
 }
 
@@ -1065,8 +1078,8 @@ int ompt_initialize(
     ompt_measure_init(&total_consumed);
     ompt_measure(&total_consumed);
 
-    printf("0: NULL_POINTER=%p\n", (void*)NULL);
-    printf("omptool initialized\n");
+//    printf("0: NULL_POINTER=%p\n", (void*)NULL);
+//    printf("omptool initialized\n");
 
     return 1; //success
 }

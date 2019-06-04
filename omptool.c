@@ -215,8 +215,6 @@ ompt_lexgion_t *ompt_lexgion_begin(thread_event_map_t *emap, int type, const voi
     return lgp;
 }
 
-#define OMPT_CSV_OUTPUT 1
-
 extern char *event_names[];
 
 static void print_lexgion(int count, thread_event_map_t * emap, ompt_lexgion_t * lgp) {
@@ -512,12 +510,11 @@ void ompt_event_maps_to_graphml(thread_event_map_t* maps) {
     SET_EVENT_NODE_GRAPHICS(ompt_callback_implicit_task,    roundrectangle,   #00CC11, #000000, line, 1.0);
     SET_EVENT_NODE_GRAPHICS(ompt_callback_master,           roundrectangle,   #99CCFF, #000000, line, 1.0);
     SET_EVENT_NODE_GRAPHICS(ompt_callback_work,             roundrectangle,   #99CC11, #000000, line, 1.0);
-    SET_EVENT_NODE_GRAPHICS(ompt_callback_idle,             roundrectangle,   #FFFF00, #000000, line, 1.0);
     SET_EVENT_NODE_GRAPHICS(ompt_callback_sync_region,      roundrectangle,   #FF0000, #000000, line, 1.0);
     SET_EVENT_NODE_GRAPHICS(ompt_callback_sync_region_wait, roundrectangle,   #FF0000, #000000, line, 1.0);
 
     const char graphml_filename[] = "OMPTrace.graphml";
-    FILE *graphml_file = fopen(graphml_filename, "w+");
+    FILE *graphml_file = fopen(graphml_filename, "w");
     /* graphml format //
     <?xml version="1.0" encoding="UTF-8"?>
         <graphml xmlns="http://graphml.graphdrawing.org/xmlns"
