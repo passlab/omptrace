@@ -1,7 +1,6 @@
 OMP_INSTALL=/home/yanyh/tools/llvm-openmp-install
 OMP_LIB_PATH=${OMP_INSTALL}/lib
-
-OMPTRACE_LIB=/home/yanyh/tools/omptrace/build/libomptrace.so
+OMPTRACE_LIB=../build/libomptrace.so
 
 default:run
 
