@@ -24,17 +24,6 @@ volatile int num_threads = 0; /* this counter is not guaranteed to provide the
  * actual exact number of threads until after it become useless :-) */
 ompt_measurement_t total_consumed;
 
-#ifdef PE_OPTIMIZATION_SUPPORT
-int EXTERNAL_CONTROL_KNOB; /* a 0/1 flag set from external for turning on/off frequency control */
-int TOTAL_NUM_CORES = 36;
-int SMT_WAY = 2;
-int TOTAL_NUM_HWTHREADS = 72; /* Total number of HW threads, which is #cores * SMT-way */
-unsigned long CORE_HIGH_FREQ = 2300000;
-unsigned long CORE_LOW_FREQ  = 1300000;
-unsigned long HWTHREADS_FREQ[72];
-int HWTHREADS_IDLE_FLAG[72] = {1}; // 0 is in the beginning of idle state; 1 means the end of idle state.
-#endif
-
 #ifdef PAPI_MEASUREMENT_SUPPORT
 int PAPI_Events[NUM_PAPI_EVENTS]={PAPI_TOT_INS, PAPI_TOT_CYC, PAPI_L1_DCM};
 #endif
@@ -299,9 +288,6 @@ void PAPI_overflow_handler(int EventSet, void *address, long_long overflow_vecto
 #endif
 
 void ompt_measure_global_init() {
-#ifdef PE_MEASUREMENT_SUPPORT
-    init_pe_units();
-#endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     /*papi event initilization*/
     PAPI_library_init(PAPI_VER_CURRENT);
@@ -362,9 +348,6 @@ void ompt_measure_reset(ompt_measurement_t * me) {
  */
 void ompt_measure(ompt_measurement_t * me) {
     me->time_stamp = read_timer_ms();
-#ifdef PE_MEASUREMENT_SUPPORT
-    pe_measure(me->pe_package, me->pe_pp0, me->pe_pp1, me->pe_dram);
-#endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     PAPI_read_counters(me->papi_counter, NUM_PAPI_EVENTS);
    // PAPI_read(me->eventSet, me->papi_counter);
@@ -378,15 +361,6 @@ void ompt_measure(ompt_measurement_t * me) {
  */
 void ompt_measure_consume(ompt_measurement_t * me) {
     me->time_stamp = read_timer_ms() - me->time_stamp;
-#ifdef PE_MEASUREMENT_SUPPORT
-    ompt_measurement_t current;
-    pe_measure(current.pe_package, current.pe_pp0, current.pe_pp1, current.pe_dram);
-
-    me->pe_package[0] = energy_consumed(me->pe_package, current.pe_package);
-    me->pe_pp0[0] = energy_consumed(me->pe_pp0, current.pe_pp0);
-    me->pe_pp1[0] = energy_consumed(me->pe_pp1, current.pe_pp1);
-    me->pe_dram[0] = energy_consumed(me->pe_dram, current.pe_package);
-#endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     long long papi_counter[me->num_papi_events];
     //PAPI_read(me->eventSet, papi_counter);
@@ -399,13 +373,6 @@ void ompt_measure_consume(ompt_measurement_t * me) {
 
 void ompt_measure_diff(ompt_measurement_t * consumed, ompt_measurement_t * begin_me, ompt_measurement_t * end_me) {
     consumed->time_stamp = end_me->time_stamp - begin_me->time_stamp;
-#ifdef PE_MEASUREMENT_SUPPORT
-
-    consumed->pe_package[0] = energy_consumed(begin_me->pe_package, end_me->pe_package);
-    consumed->pe_pp0[0] = energy_consumed(begin_me->pe_pp0, end_me->pe_pp0);
-    consumed->pe_pp1[0] = energy_consumed(begin_me->pe_pp1, end_me->pe_pp1);
-    consumed->pe_dram[0] = energy_consumed(begin_me->pe_dram, end_me->pe_package);
-#endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     int i;
     for (i=0; i<end_me->num_papi_events; i++)
@@ -426,12 +393,6 @@ int ompt_measure_compare(ompt_measurement_t * best, ompt_measurement_t * current
 
 void ompt_measure_accu(ompt_measurement_t * accu, ompt_measurement_t * me) {
     accu->time_stamp += me->time_stamp;
-#ifdef PE_MEASUREMENT_SUPPORT
-    accu->pe_package[0] += me->pe_package[0];
-    accu->pe_pp0[0] += me->pe_pp0[0];
-    accu->pe_pp1[0] += me->pe_pp1[0];
-    accu->pe_dram[0] += me->pe_dram[0];
-#endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     int i;
     for (i=0; i<accu->num_papi_events; i++)
@@ -448,17 +409,6 @@ void ompt_measure_print(ompt_measurement_t * me, FILE* csvfile) {
     printf("%.2f", me->time_stamp);
 #if defined(OMPT_CSV_OUTPUT)
     if (csvfile != NULL) fprintf(csvfile, "%.2f,", me->time_stamp);
-#endif
-#ifdef PE_MEASUREMENT_SUPPORT
-    double package_energy = me->pe_package[0];
-    double pp0_energy = me->pe_pp0[0];
-    double pp1_energy = me->pe_pp1[0];
-    double dram_energy = me->pe_dram[0];
-    double total_energy = package_energy + dram_energy;
-    printf("\t\t%.2f\t\t%.2f\t\t%.2f\t\t%.2f\t\t\t%.2f", total_energy, package_energy, pp1_energy, pp0_energy, dram_energy);
-#if defined(OMPT_CSV_OUTPUT)
-    if (csvfile != NULL) fprintf(csvfile, "%.2f,%.2f,%.2f,%.2f,%.2f,", total_energy, package_energy, pp1_energy, pp0_energy, dram_energy);
-#endif
 #endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     printf("\t\t");
@@ -484,9 +434,6 @@ void ompt_measure_print(ompt_measurement_t * me, FILE* csvfile) {
 
 void ompt_measure_print_header(ompt_measurement_t * me) {
     printf("Time(ms)");
-#ifdef PE_MEASUREMENT_SUPPORT
-    printf("\tEnergy (j) total (PKG+DRAM): package\tPP0\t\t\tPP1\t\t\tDRAM");
-#endif
 #ifdef PAPI_MEASUREMENT_SUPPORT
     printf("\t\t");
 #ifdef PAPI_CPI_PRINT

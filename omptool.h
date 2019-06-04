@@ -8,38 +8,6 @@
 #define MAX_HIST_PARALLEL 16
 /* the max number of parallel regions in the original source code */
 #define MAX_SRC_PARALLELS 64
-#define MAX_NUM_PACKAGES 16
-
-/**
-//macro for features, now in CMakeLists.txt
-
-//For tracing
-#define OMPT_TRACING_SUPPORT 1
-#define OMPT_ONLINE_TRACING_PRINT 1
-
-//For additional measurement
-#define OMPT_MEASUREMENT_SUPPORT 1
-#define PAPI_MEASUREMENT_SUPPORT 1
-#define PE_MEASUREMENT_SUPPORT 1
-
-//For optimization
-#define PE_OPTIMIZATION_SUPPORT 1
-#define PE_OPTIMIZATION_DVFS 1
-*/
-
-#ifdef PE_OPTIMIZATION_SUPPORT
-#include "cpufreq.h"
-//extern int iteration_ompt;
-//int inner_counter = 0;
-extern int EXTERNAL_CONTROL_KNOB; /* a 0/1 flag set from external for turning on/off frequency control */
-extern int TOTAL_NUM_CORES;
-extern int SMT_WAY;
-extern int TOTAL_NUM_HWTHREADS; /* Total number of HW threads, which is #cores * SMT-way */
-extern unsigned long CORE_HIGH_FREQ;
-extern unsigned long CORE_LOW_FREQ;
-extern unsigned long HWTHREADS_FREQ[];
-extern int HWTHREADS_IDLE_FLAG[]; // 0 is in the beginning of idle state; 1 means the end of idle state.
-#endif
 
 #ifdef PAPI_MEASUREMENT_SUPPORT
 #include <papi.h>
@@ -52,16 +20,6 @@ typedef struct ompt_measurement {
     unsigned long frequency;
     int requested_team_size;
     int team_size;
-#ifdef PE_MEASUREMENT_SUPPORT
-    /* The trace record for power and energy info. We only need record for master thread, and we do not need pe tracing
-     * in every ompt event
-     */
-    double pe_package[MAX_NUM_PACKAGES];
-    double pe_pp0[MAX_NUM_PACKAGES]; /* PP0 is core energy */
-    double pe_pp1[MAX_NUM_PACKAGES]; /* PP1 is uncore energy */
-    double pe_dram[MAX_NUM_PACKAGES];
-    double edp;
-#endif
 
 #ifdef PAPI_MEASUREMENT_SUPPORT
     int num_papi_events;
@@ -219,16 +177,6 @@ extern int ompt_measure_compare(ompt_measurement_t * best, ompt_measurement_t * 
 extern void ompt_measure_print(ompt_measurement_t * me, FILE * csv_fid);
 extern void ompt_measure_print_header(ompt_measurement_t * me);
 extern void ompt_event_maps_to_graphml(thread_event_map_t* maps);
-
-#ifdef PE_MEASUREMENT_SUPPORT
-/**
- * measure energy and store in the array for each package
- */
-extern void init_pe_units();
-extern void pe_measure(double *package, double *pp0, double *pp1, double *dram);
-extern unsigned long pe_adjust_freq(int id, unsigned long freq);
-extern double energy_consumed(double *begin, double *end);
-#endif
 
 extern double read_timer();
 extern double read_timer_ms();
