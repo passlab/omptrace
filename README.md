@@ -2,11 +2,11 @@
 # OMPTrace for tracing and visualizing OpenMP program execution
 
 ## Prerequisite
-OpenMP implementation that supports OMPT interface, which is the llvm OpenMP runtime (https://git.llvm.org/git/openmp.git/). 
+OpenMP implementation that supports OMPT interface, which is the [LLVM OpenMP runtime](https://github.com/llvm-mirror/openmp.git). 
    The LLVM OpenMP runtime can be installed standalone or with llvm/clang compiler. The instructions below are for standalone installation. 
   1. clone the repo and checkout the branch
    
-           git clone https://git.llvm.org/git/openmp.git/ llvm-openmp
+           git clone https://github.com/llvm-mirror/openmp.git llvm-openmp
            cd llvm-openmp
            
   1. cmake to create the makefile with OMPT_SUPPORT abled, build it and install it
