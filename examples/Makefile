@@ -1,7 +1,7 @@
 OMP_INSTALL=/home/yanyh/tools/llvm-openmp-install
 OMP_LIB_PATH=${OMP_INSTALL}/lib
 
-OMPTOOL_LIB=/home/yanyh/tools/omptool/build/libomptool.so
+OMPTRACE_LIB=/home/yanyh/tools/omptrace/build/libomptrace.so
 
 default:run
 
@@ -14,10 +14,10 @@ jacobi: jacobi.c
 	objdump -d jacobi >jacobi.objdump
 
 runaxpy: axpyclang
-	LD_PRELOAD=${OMP_LIB_PATH}/libomp.so:${OMPTOOL_LIB} ./axpyclang 1024	
+	LD_PRELOAD=${OMP_LIB_PATH}/libomp.so:${OMPTRACE_LIB} ./axpyclang 1024	
 
 runjacobi: jacobi
-	LD_PRELOAD=${OMP_LIB_PATH}/libomp.so:${OMPTOOL_LIB} ./jacobi
+	LD_PRELOAD=${OMP_LIB_PATH}/libomp.so:${OMPTRACE_LIB} ./jacobi
 
 clean:
 	rm axpyclang axpyclang.objdump core jacobi jacobi.objdump

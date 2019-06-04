@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
-#include "omptool.h"
+#include "omptrace.h"
 #include <sys/timeb.h>
 
 double read_timer() {
@@ -513,7 +513,7 @@ void ompt_event_maps_to_graphml(thread_event_map_t* maps) {
     SET_EVENT_NODE_GRAPHICS(ompt_callback_sync_region,      roundrectangle,   #FF0000, #000000, line, 1.0);
     SET_EVENT_NODE_GRAPHICS(ompt_callback_sync_region_wait, roundrectangle,   #FF0000, #000000, line, 1.0);
 
-    const char graphml_filename[] = "OMPTrace.graphml";
+    const char graphml_filename[] = "OMPTRACE.graphml";
     FILE *graphml_file = fopen(graphml_filename, "w");
     /* graphml format //
     <?xml version="1.0" encoding="UTF-8"?>

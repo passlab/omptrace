@@ -10,7 +10,7 @@
 #include <omp.h>
 #include <ompt.h>
 #include <string.h>
-#include "omptool.h"
+#include "omptrace.h"
 
 static const char* ompt_thread_t_values[] = {
         NULL,

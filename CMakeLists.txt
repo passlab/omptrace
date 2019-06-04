@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.2)
-project(omptool)
+project(omptrace)
 
 set(CMAKE_CXX_STANDARD 11)
 
@@ -27,17 +27,17 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FEATURES} -g")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FEATURES} -g")
 
 set(SOURCE_FILES
-    omptool.h
-    omptool.c
+    omptrace.h
+    omptrace.c
     ompt_callback.c
 )
 
-add_library(omptool SHARED ${SOURCE_FILES})
+add_library(omptrace SHARED ${SOURCE_FILES})
 include_directories(${OMP_INCLUDE})
 
 # If PAPI measurement is set, uncomment the following and specify the correct PAPI path
 #include_directories(${PAPI_INSTALL}/include)
 #link_directories(${OMP_LIB_PATH} ${PAPI_INSTALL}/lib)
-#target_link_libraries(omptool m ${PAPI_INSTALL}/lib/libpapi.so)
+#target_link_libraries(omptrace m ${PAPI_INSTALL}/lib/libpapi.so)
 
-#target_link_libraries(omptool unwind m)
+#target_link_libraries(omptrace unwind m)
