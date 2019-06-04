@@ -45,3 +45,9 @@ Tracing is writen to a graphml file named OMPTRACE.graphml and you need [yEd](ht
 
 ## Limitation
 The current implementation is simple and all traces of OMPT events are written to memory and then dump to the graphml file. Thus there is limitation of the number of events each thread records and the graphml file could be huge. This is particularly true for parallel iterative program that has some OpenMP parallel regions to be executed thousands of times. Jacobi shows such case, and two OpenMP loops each is executed for 5000 times. The graphml file generated is huge and not renderable.  
+
+## [3-clause BSD License](LICENSE_BSD.txt) and Acknowledgement
+Copyright (c) 2016 - 2019 Yonghong Yan and PASSlab (https://passlab.github.io) 
+from University of South Carolina. All rights reserved. Funding for this research and 
+development was provided by the National Science Foundation 
+under award number CISE CCF-1833312, and CISE SHF-1551182. 
