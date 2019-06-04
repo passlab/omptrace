@@ -1,5 +1,14 @@
 
 # OMPTrace for tracing and visualizing OpenMP program execution
+A simple tool for tracing and visualizing OpenMP program execution, check [SC18 OpenMP booth talk for an overview](https://www.openmp.org/wp-content/uploads/SC18_OpenMPBoothTalk_YonghongYan.pdf). 
+
+## Features
+ 1. Trace program execution using OMPT callback, 
+ 1. Time stamp and calcualte elapsed time for parallel regions, worksharing, etc, 
+ 1. Collect PAPI counters in each traced event
+ 1. Output the events and measurement data for a parallel region
+ 1. Output measurement data (elapsed time, and PAPI counters) in CSV file
+ 1. Dump all the traces to the graphml file for visualization
 
 ## Prerequisite
 OpenMP implementation that supports OMPT interface, which is the [LLVM OpenMP runtime](https://github.com/llvm-mirror/openmp.git). 
@@ -34,14 +43,6 @@ There are two examples so far you can experiment in [examples](examples) folder,
 
 ## Visualization
 Tracing is writen to a graphml file named OMPTRACE.graphml and you need [yEd](https://www.yworks.com/products/yed) to layout and visualize the trace file. 
-
-## Features
- 1. Trace program execution using OMPT callback, 
- 1. Time stamp and calcualte elapsed time for parallel regions, worksharing, etc, 
- 1. Collect PAPI counters in each traced event
- 1. Output the events and measurement data for a parallel region
- 1. Output measurement data (elapsed time, and PAPI counters) in CSV file
- 1. Dump all the traces to the graphml file for visualization
 
 ## Limitation
 The current implementation is simple and all traces of OMPT events are written to memory and then dump to the graphml file. Thus there is limitation of the number of events each thread records and the graphml file could be huge. This is particularly true for parallel iterative program that has some OpenMP parallel regions to be executed thousands of times. Jacobi shows such case, and two OpenMP loops each is executed for 5000 times. The graphml file generated is huge and not renderable.  
