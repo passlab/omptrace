@@ -39,6 +39,22 @@ static const char* ompt_cancel_flag_t_values[] = {
         "ompt_cancel_discarded_task"
 };
 
+static const char *ompt_dependence_type_t_values[36] = {
+    "ompt_dependence_type_UNDEFINED",
+    "ompt_dependence_type_in", // 1
+    "ompt_dependence_type_out", // 2
+    "ompt_dependence_type_inout", // 3
+    "ompt_dependence_type_mutexinoutset", // 4
+    "ompt_dependence_type_source", // 5
+    "ompt_dependence_type_sink", // 6
+    "ompt_dependence_type_inoutset", // 7
+    "", "", "", "", "", "", // 8-13
+    "", "", "", "", "", "", "", "", "", "", // 14-23
+    "", "", "", "", "", "", "", "", "", "", // 24-33
+    "ompt_dependence_type_out_all_memory", // 34
+    "ompt_dependence_type_inout_all_memory" // 35
+};
+
 static void format_task_type(int type, char *buffer) {
     char *progress = buffer;
     if (type & ompt_task_initial)
@@ -907,27 +923,54 @@ on_ompt_callback_task_create(
 		    
 }
 
+
+
 static void
 on_ompt_callback_task_schedule(
-        ompt_data_t *first_task_data,
-        ompt_task_status_t prior_task_status,
-        ompt_data_t *second_task_data)
+    ompt_data_t *first_task_data,
+    ompt_task_status_t prior_task_status,
+    ompt_data_t *second_task_data)
 {
-    printf("%" PRIu64 ": ompt_event_task_schedule: first_task_id=%" PRIu64 ", second_task_id=%" PRIu64 ", prior_task_status=%s=%d\n", ompt_get_thread_data()->value, first_task_data->value, second_task_data->value, ompt_task_status_t_values[prior_task_status], prior_task_status);
-    if(prior_task_status == ompt_task_complete)
-    {
-        printf("%" PRIu64 ": ompt_event_task_end: task_id=%" PRIu64 "\n", ompt_get_thread_data()->value, first_task_data->value);
-    }
+  printf("%" PRIu64 ": ompt_event_task_schedule: first_task_id=%" PRIu64
+         ", second_task_id=%" PRIu64 ", prior_task_status=%s=%d\n",
+         ompt_get_thread_data()->value, first_task_data->value,
+         (second_task_data ? second_task_data->value : -1),
+         ompt_task_status_t_values[prior_task_status], prior_task_status);
+  if (prior_task_status == ompt_task_complete ||
+      prior_task_status == ompt_task_late_fulfill ||
+      prior_task_status == ompt_taskwait_complete) {
+    printf("%" PRIu64 ": ompt_event_task_end: task_id=%" PRIu64
+           "\n", ompt_get_thread_data()->value, first_task_data->value);
+  }
 }
 
 static void
 on_ompt_callback_dependences(
-        ompt_data_t *task_data,
-        const ompt_dependence_t *deps,
-        int ndeps)
+  ompt_data_t *task_data,
+  const ompt_dependence_t *deps,
+  int ndeps)
 {
-    printf("%" PRIu64 ": ompt_event_task_dependences: task_id=%" PRIu64 ", deps=%p, ndeps=%d\n", ompt_get_thread_data()->value, task_data->value, (void *)deps, ndeps);
+  char buffer[2048];
+  char *progress = buffer;
+  int i;
+  for (i = 0; i < ndeps && progress < buffer + 2000; i++) {
+    if (deps[i].dependence_type == ompt_dependence_type_source ||
+        deps[i].dependence_type == ompt_dependence_type_sink)
+      progress +=
+          sprintf(progress, "(%" PRIu64 ", %s), ", deps[i].variable.value,
+                  ompt_dependence_type_t_values[deps[i].dependence_type]);
+    else
+      progress +=
+          sprintf(progress, "(%p, %s), ", deps[i].variable.ptr,
+                  ompt_dependence_type_t_values[deps[i].dependence_type]);
+  }
+  if (ndeps > 0)
+    progress[-2] = 0;
+  printf("%" PRIu64 ": ompt_event_dependences: task_id=%" PRIu64
+         ", deps=[%s], ndeps=%d\n",
+         ompt_get_thread_data()->value, task_data->value, buffer, ndeps);
 }
+
 
 static void
 on_ompt_callback_task_dependence(
