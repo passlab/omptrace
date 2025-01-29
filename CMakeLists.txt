@@ -7,8 +7,8 @@ set(CMAKE_VERBOSE_MAKEFILE ON)
 
 # set up path
 set(OMP_INSTALL /home/yanyh/tools/llvm-openmp-install)
-set(OMP_LIB_PATH ${OMP_INSTALL}/lib)
-set(OMP_INCLUDE ${OMP_INSTALL}/include)
+#set(OMP_INCLUDE /usr/lib/llvm-18/lib/clang/18/include)
+#set(OMP_LIB_PATH /usr/lib/llvm-18/lib)
 
 set(FEATURES "")
 set(FEATURES "${FEATURES} -DOMPT_MEASUREMENT_SUPPORT=1")
@@ -27,6 +27,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${FEATURES} -g")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${FEATURES} -g")
 
 set(SOURCE_FILES
+    ompt.h
     omptrace.h
     omptrace.c
     ompt_callback.c

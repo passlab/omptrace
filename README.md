@@ -39,7 +39,17 @@ If you use the OpenMP runtime installed with clang/llvm or from Intel compiler, 
     make
     
 ## Experiment
-There are two examples so far you can experiment in [examples](examples) folder, axpy and jacobi. Check the Makefile to see how they can be compiled and executed with omptrace enabled.
+There are three examples so far you can experiment in [examples](examples) folder, axpy, jacobi and fib-task. Check the Makefile to see how they can be compiled and executed with omptrace enabled. 
+
+### To execute axpy
+    cd examples
+    make axpy
+    make runaxpy
+
+### To execute fib-task
+    cd examples 
+    make fib
+    make runfib
 
 ## Visualization
 Tracing is writen to a graphml file named OMPTRACE.graphml and you need [yEd](https://www.yworks.com/products/yed) to layout and visualize the trace file. 

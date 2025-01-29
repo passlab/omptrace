@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include <ompt.h>
+#include "ompt.h"
 #include "kmp_hack.h"
 
 #define MAX_NUM_RECORDS 10000000
