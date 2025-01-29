@@ -861,7 +861,7 @@ on_ompt_callback_implicit_task(
 static void
 on_ompt_callback_task_create(
         ompt_data_t *parent_task_data,     /* id of parent task            */
-        const ompt_frame_t *parent_frame,  /* frame data for parent task   */
+        const ompt_frame_t *parent_task_frame,  /* frame data for parent task   */
         ompt_data_t* new_task_data,        /* id of created task           */
         int type,
         int has_dependences,
@@ -884,21 +884,27 @@ on_ompt_callback_task_create(
 
 #ifdef OMPT_TRACING_SUPPORT
         ompt_trace_record_t * initial_task_record = add_trace_record_begin(emap, ompt_callback_task_create,
-                                                                           parent_frame, NULL, NULL, NULL);
+                                                                           parent_task_frame, NULL, NULL, NULL);
 #endif
     } else {
         ompt_lexgion_t * lgp = ompt_lexgion_begin(emap, ompt_callback_task_create, codeptr_ra);
 #ifdef OMPT_TRACING_SUPPORT
-        ompt_trace_record_t * record = add_trace_record_begin(emap, ompt_callback_task_create, parent_frame, lgp,
+        ompt_trace_record_t * record = add_trace_record_begin(emap, ompt_callback_task_create, parent_task_frame, lgp,
                                                               parent_task_data->ptr, parallel_data->ptr);
         tribute_record_lexgion(lgp, record);
 #endif
 
     }
 
-    //char buffer[2048];
-    //format_task_type(type, buffer);
-    //printf("%" PRIu64 ": ompt_event_task_create: parent_task_id=%" PRIu64 ", parent_task_frame.exit=%p, parent_task_frame.reenter=%p, new_task_id=%" PRIu64 ", parallel_function=%p, task_type=%s=%d, has_dependences=%s\n", ompt_get_thread_data()->value, parent_task_data ? parent_task_data->value : 0, parent_frame ? parent_frame->exit_runtime_frame : NULL, parent_frame ? parent_frame->reenter_runtime_frame : NULL, new_task_data->value, codeptr_ra, buffer, type, has_dependences ? "yes" : "no");
+    char buffer[2048];
+    format_task_type(type, buffer);
+    printf("%" PRIu64 ": ompt_event_task_create: parent_task_id=%" PRIu64 ", parent_task_frame.exit=%p, parent_task_frame.reenter=%p, new_task_id=%" PRIu64 ", parallel_function=%p, task_type=%s=%d, has_dependences=%s\n", ompt_get_thread_data()->value,       parent_task_data ? parent_task_data->value : 0,
+      parent_task_frame ? parent_task_frame->exit_frame.ptr : NULL,
+      parent_task_frame ? parent_task_frame->enter_frame.ptr : NULL,
+      new_task_data->value, codeptr_ra, buffer, type,
+      has_dependences ? "yes" : "no");		 
+		    
+		    
 }
 
 static void
@@ -907,7 +913,7 @@ on_ompt_callback_task_schedule(
         ompt_task_status_t prior_task_status,
         ompt_data_t *second_task_data)
 {
-    //printf("%" PRIu64 ": ompt_event_task_schedule: first_task_id=%" PRIu64 ", second_task_id=%" PRIu64 ", prior_task_status=%s=%d\n", ompt_get_thread_data()->value, first_task_data->value, second_task_data->value, ompt_task_status_t_values[prior_task_status], prior_task_status);
+    printf("%" PRIu64 ": ompt_event_task_schedule: first_task_id=%" PRIu64 ", second_task_id=%" PRIu64 ", prior_task_status=%s=%d\n", ompt_get_thread_data()->value, first_task_data->value, second_task_data->value, ompt_task_status_t_values[prior_task_status], prior_task_status);
     if(prior_task_status == ompt_task_complete)
     {
         printf("%" PRIu64 ": ompt_event_task_end: task_id=%" PRIu64 "\n", ompt_get_thread_data()->value, first_task_data->value);
